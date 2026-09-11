@@ -8,7 +8,7 @@ Choose an implementation-ready architecture for a single-profile Nestplay PoC: G
 
 ## Notes
 
-Use wayfinder, research, grilling and domain-modeling. Local Markdown is the tracker because no Nestplay repository/tracker was specified. Research branches live in isolated repositories under work/research; findings are linked from resolution comments. Perch is an optional reference, not a dependency. Execution exception authorized by the user: first build an incremental tvOS-to-Go health-check PoC, tracked by its own child milestone map, before YouTube/account experiments. This does not authorize implementing the entire media platform at once. Every later increment remains Wayfinder-tracked.
+Use wayfinder, research, grilling and domain-modeling. GitHub Issues is the canonical tracker. This file is its versioned repository mirror. Research branches live in isolated repositories under work/research; findings are linked from resolution comments. Perch is an optional reference, not a dependency. Execution exception authorized by the user: first build an incremental tvOS-to-Go health-check PoC, tracked by its own child milestone map, before YouTube/account experiments. This does not authorize implementing the entire media platform at once. Every later increment remains Wayfinder-tracked.
 
 Health milestone status: simulator-complete in this repository; physical Apple TV acceptance remains open in `../nestplay-health/02-physical-device-acceptance.md`.
 
@@ -16,9 +16,9 @@ User requirements: one profile and one YouTube account; server-side authenticati
 
 ## Decisions so far
 
-- [Establish personalized YouTube access and session lifecycle](issues/01-youtube-session.md) — YouTube.js plus yt-dlp is the documented candidate; cookie handoff and live-account reliability remain separate gates.
-- [Select original-language metadata and Spanish subtitle sources](issues/02-metadata-subtitles.md) — TMDB, OpenSubtitles.com and existing YouTube captions cover the provider roles, with per-item language policy and quotas requiring validation.
-- [Choose modular playback and realistic Mac packaging](issues/03-playback-packaging.md) — Go plus an interchangeable native Jellyfin backend is the candidate; bundle/config packaging and proactive disk-write supervision are required.
+- [Establish personalized YouTube access and session lifecycle](https://github.com/frivas/nestplay/issues/3) — YouTube.js plus yt-dlp is the documented candidate; cookie handoff and live-account reliability remain separate gates.
+- [Select original-language metadata and Spanish subtitle sources](https://github.com/frivas/nestplay/issues/5) — TMDB, OpenSubtitles.com and existing YouTube captions cover the provider roles, with per-item language policy and quotas requiring validation.
+- [Choose modular playback and realistic Mac packaging](https://github.com/frivas/nestplay/issues/4) — Go plus an interchangeable native Jellyfin backend is the candidate; bundle/config packaging and proactive disk-write supervision are required.
 
 ## Not yet specified
 

@@ -12,7 +12,7 @@ User explicitly requested this incremental build before YouTube integration. Exe
 
 ## Decisions so far
 
-- [Build and validate the first LAN health check](01-health-proof.md) — The Go-to-tvOS contract, device build and simulator success/failure flows work; physical Apple TV acceptance remains open.
+- [Build and validate the first LAN health check](https://github.com/frivas/nestplay/issues/11) — The Go-to-tvOS contract, device build and simulator success/failure flows work; physical Apple TV acceptance remains open.
 
 ## Not yet specified
 

@@ -4,8 +4,8 @@ Type: task
 Label: wayfinder:task
 Status: open
 Assignee: none
-Parent: map.md
-Blocked by: 01
+Parent: [Prove Apple TV can reach the Nestplay Go server](https://github.com/frivas/nestplay/issues/1)
+Blocked by: [Build and validate the first LAN health check](https://github.com/frivas/nestplay/issues/11)
 
 ## Question
 

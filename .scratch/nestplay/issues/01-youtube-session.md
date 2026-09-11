@@ -4,7 +4,7 @@ Type: research
 Label: wayfinder:research
 Status: resolved
 Assignee: youtube-research
-Parent: ../map.md
+Parent: [Decide Nestplay&apos;s proof-of-concept architecture](https://github.com/frivas/nestplay/issues/2)
 Blocked by: none
 
 ## Question

@@ -4,8 +4,8 @@ Type: task
 Label: wayfinder:task
 Status: open
 Assignee: none
-Parent: ../map.md
-Blocked by: 02
+Parent: [Decide Nestplay&apos;s proof-of-concept architecture](https://github.com/frivas/nestplay/issues/2)
+Blocked by: [Select original-language metadata and Spanish subtitle sources](https://github.com/frivas/nestplay/issues/5)
 
 ## Question
 

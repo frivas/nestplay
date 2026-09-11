@@ -4,7 +4,7 @@ Type: task
 Label: wayfinder:task
 Status: resolved
 Assignee: root
-Parent: map.md
+Parent: [Prove Apple TV can reach the Nestplay Go server](https://github.com/frivas/nestplay/issues/1)
 Blocked by: none
 
 ## Question

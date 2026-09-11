@@ -4,8 +4,8 @@ Type: task
 Label: wayfinder:task
 Status: open
 Assignee: none
-Parent: ../map.md
-Blocked by: 01, 02, 03, 06, 07
+Parent: [Decide Nestplay&apos;s proof-of-concept architecture](https://github.com/frivas/nestplay/issues/2)
+Blocked by: [Establish personalized YouTube access and session lifecycle](https://github.com/frivas/nestplay/issues/3), [Select original-language metadata and Spanish subtitle sources](https://github.com/frivas/nestplay/issues/5), [Choose modular playback and realistic Mac packaging](https://github.com/frivas/nestplay/issues/4), [Accept the PoC YouTube connection experience](https://github.com/frivas/nestplay/issues/8), [Prepare metadata and subtitle provider access](https://github.com/frivas/nestplay/issues/10)
 
 ## Question
 

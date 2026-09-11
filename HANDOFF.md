@@ -8,7 +8,7 @@ The first executable milestone exists and passes its automated checks. A small G
 
 The full PoC has not been built. YouTube, media indexing, playback, Jellyfin, metadata, subtitles and storage supervision are deliberate later increments.
 
-Source: this directory. Canonical architecture tracker: `.scratch/nestplay/map.md`. Canonical health milestone tracker: `.scratch/nestplay-health/map.md`. Research is in `docs/research/`.
+Source: this directory. Canonical architecture map: https://github.com/frivas/nestplay/issues/2. Canonical health milestone map: https://github.com/frivas/nestplay/issues/1. The `.scratch` directories are versioned mirrors. Research is in `docs/research/`.
 
 ## Product destination and accepted requirements
 
@@ -33,7 +33,7 @@ Target hardware observed: server candidate is an M1 Pro MacBook Pro with 16 GB R
 
 ## Wayfinder state
 
-Always use the named Wayfinder skill and local Markdown tracker. Refer to tickets by linked name in user-facing text, not bare numbers. Claim a ticket before work. Resolve it with an `## Answer`, set `Status: resolved`, and append only a one-line pointer to its map. Never resolve more than one non-research ticket in a session.
+Always use the named Wayfinder skill and the GitHub Issues tracker. Refer to tickets by linked name in user-facing text, not bare numbers. Claim a ticket before work. Resolve it with an `## Answer`, set `Status: resolved`, and append only a one-line pointer to its map. Never resolve more than one non-research ticket in a session.
 
 The health milestone map, `.scratch/nestplay-health/map.md`, has one resolved ticket:
 

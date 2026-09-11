@@ -4,8 +4,8 @@ Type: grilling
 Label: wayfinder:grilling
 Status: open
 Assignee: none
-Parent: ../map.md
-Blocked by: 04
+Parent: [Decide Nestplay&apos;s proof-of-concept architecture](https://github.com/frivas/nestplay/issues/2)
+Blocked by: [Validate account access and playback on the target devices](https://github.com/frivas/nestplay/issues/6)
 
 ## Question
 
