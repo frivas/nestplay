@@ -6,4 +6,4 @@ This first milestone only establishes a tvOS-to-Go health check. Do not add YouT
 
 The Go server and Swift health client share the response contract documented in README.md. Validate protocol changes in both. Keep external framework dependencies out of this milestone unless necessary. Keep signing team and user credentials out of the project. Use the checked-in XcodeGen spec when changing Xcode project settings.
 
-Prefix shell commands with rtk as required by the workspace user instructions. Do not publish or push this project without explicit user authorization.
+Prefix shell commands with rtk as required by the workspace user instructions. CI is path-scoped: server changes use `.github/workflows/server-ci.yml`; tvOS and shared Swift changes use `.github/workflows/tvos-ci.yml`. Keep each workflow independent except for files such as the root `Makefile` that control both build paths. Do not publish or push this project without explicit user authorization.

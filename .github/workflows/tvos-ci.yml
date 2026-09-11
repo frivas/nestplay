@@ -1,0 +1,91 @@
+name: tvOS CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/tvos/**"
+      - "packages/HealthClient/**"
+      - "Makefile"
+      - ".github/workflows/tvos-ci.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "apps/tvos/**"
+      - "packages/HealthClient/**"
+      - "Makefile"
+      - ".github/workflows/tvos-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: tvos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify tvOS app
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Check Swift formatting
+        run: xcrun swift-format lint --recursive --parallel apps/tvos packages/HealthClient
+
+      - name: Test shared Swift package
+        run: swift test --package-path packages/HealthClient --parallel
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Check generated Xcode project
+        shell: bash
+        run: |
+          make project
+          if [[ -n "$(git status --porcelain -- apps/tvos/Nestplay.xcodeproj)" ]]; then
+            git diff -- apps/tvos/Nestplay.xcodeproj
+            echo "Run 'make project' and commit the generated Xcode project."
+            exit 1
+          fi
+
+      - name: Validate property list
+        run: plutil -lint apps/tvos/Nestplay/Info.plist
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@311b4ee155dcdab395044f00946f664bd51ff173 # v4
+        with:
+          languages: swift
+          build-mode: manual
+
+      - name: Run Xcode static analysis
+        run: >-
+          xcodebuild analyze
+          -project apps/tvos/Nestplay.xcodeproj
+          -scheme Nestplay
+          -destination 'generic/platform=tvOS'
+          -derivedDataPath "${RUNNER_TEMP}/nestplay-analyze"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+
+      - name: Build tvOS app
+        run: >-
+          xcodebuild build
+          -project apps/tvos/Nestplay.xcodeproj
+          -scheme Nestplay
+          -destination 'generic/platform=tvOS'
+          -derivedDataPath "${RUNNER_TEMP}/nestplay-build"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@311b4ee155dcdab395044f00946f664bd51ff173 # v4
+        with:
+          category: /language:swift

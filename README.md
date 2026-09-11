@@ -62,6 +62,8 @@ make test
 make server
 ```
 
+GitHub runs path-scoped server and tvOS workflows. See [continuous integration](docs/ci.md) for triggers, pinned tools, and security checks.
+
 To regenerate the Xcode project after changing `apps/tvos/project.yml`, run `make project` with XcodeGen installed. Regeneration is not required to open the checked-in project.
 
 With the server running on port 8765, run the Nestplay scheme's tests in a tvOS simulator. The UI checks cover a successful real-server response and an unreachable endpoint with retry available. The portable Swift package tests malformed responses, wrong server/version, address validation and network failure.
