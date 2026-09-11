@@ -26,7 +26,7 @@
 /* Begin PBXFileReference section */
 		21332DFD32B40F5C8069AF4E /* ConnectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionTests.swift; sourceTree = "<group>"; };
 		2D7DE5A9488AE9AD607E7AB8 /* NestplayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NestplayApp.swift; sourceTree = "<group>"; };
-		508382C455287E25970D8A47 /* HealthClient */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HealthClient; path = ../HealthClient; sourceTree = SOURCE_ROOT; };
+		508382C455287E25970D8A47 /* HealthClient */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HealthClient; path = ../../packages/HealthClient; sourceTree = SOURCE_ROOT; };
 		52FDCACAF31F75163BC0C8FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B8A556C6650FE43A496E242 /* NestplayUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NestplayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
@@ -158,7 +158,7 @@
 			mainGroup = B28C882C94988E4A6B4B82CF;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8F120E55E031D8270FA1EBA1 /* XCLocalSwiftPackageReference "../HealthClient" */,
+				1EC82C72584954740DED40EB /* XCLocalSwiftPackageReference "../../packages/HealthClient" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C036BFEB76EE9A5FC9936CA8 /* Products */;
@@ -426,9 +426,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		8F120E55E031D8270FA1EBA1 /* XCLocalSwiftPackageReference "../HealthClient" */ = {
+		1EC82C72584954740DED40EB /* XCLocalSwiftPackageReference "../../packages/HealthClient" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../HealthClient;
+			relativePath = ../../packages/HealthClient;
 		};
 /* End XCLocalSwiftPackageReference section */
 

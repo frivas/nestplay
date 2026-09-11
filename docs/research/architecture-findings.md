@@ -50,7 +50,7 @@ This is a proposed arrangement. Exact authenticated media URL routing and HLS pl
 - Safe simulated/isolated-volume disk-threshold tests and measured resource use.
 - Final acceptance of packaging and the stack after those results.
 
-[Validation plan](validation-plan.md) specifies the bounded proofs. [Wayfinder map snapshot](../wayfinder-export/map.md) indexes resolved research; child tickets preserve open dependencies. The canonical local tracker is [`.scratch/nestplay/`](../../.scratch/nestplay/map.md).
+[Validation plan](validation-plan.md) specifies the bounded proofs. The canonical [Wayfinder map](../../.scratch/nestplay/map.md) indexes resolved research and its child tickets preserve open dependencies.
 
 ## Target-device refinement
 

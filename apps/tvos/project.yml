@@ -5,7 +5,7 @@ options:
     tvOS: '17.0'
 packages:
   HealthClient:
-    path: ../HealthClient
+    path: ../../packages/HealthClient
 settings:
   base:
     SWIFT_VERSION: '6.0'

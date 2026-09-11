@@ -4,10 +4,10 @@ The first incremental Nestplay milestone: a Go server and a native tvOS app that
 
 ## Run the server
 
-The included `bin/nestplay-server` is a development build for Apple Silicon Macs. From this directory:
+Build and run the Go server from the repository root:
 
 ```sh
-./bin/nestplay-server
+make run
 ```
 
 It listens on port 8765. On Apple TV, enter `http://<Mac local hostname>.local:8765` or `http://<Mac LAN IP>:8765`. Find the local hostname in macOS System Settings → General → Sharing. Use the Mac's address, not `localhost`, on a physical Apple TV.
@@ -17,15 +17,15 @@ If macOS asks about incoming connections, allow the server for this LAN test. Bo
 Optional configuration:
 
 ```sh
-./bin/nestplay-server -config server/config.example.json
-./bin/nestplay-server -listen 0.0.0.0:8766
+.build/bin/nestplay-server -config server/config.example.json
+.build/bin/nestplay-server -listen 0.0.0.0:8766
 ```
 
 Stop with Control-C. To rebuild, install Go 1.23 or newer and run `make server`. No third-party Go modules are needed.
 
 ## Run the Apple TV app
 
-1. Open `tvos/Nestplay.xcodeproj` in Xcode.
+1. Open `apps/tvos/Nestplay.xcodeproj` in Xcode.
 2. Select the Nestplay app target. For a physical Apple TV, select your signing team and an available bundle identifier under Signing & Capabilities. The checked-in project does not select an account or team.
 3. Pair/select the Apple TV in Xcode's Devices and Simulators window. Enable Developer Mode if the device requests it, then build and run.
 4. Enter the Mac address and select **Check connection**. Accept local-network access if requested.
@@ -47,12 +47,12 @@ Other paths return 404 and unsupported methods return 405. This is a liveness ch
 
 ## Structure
 
-- `server/`: Go executable, configuration example and HTTP contract tests.
-- `HealthClient/`: small Swift package used by the app and a command-line integration probe.
-- `tvos/`: SwiftUI app, checked-in Xcode project and two UI checks.
+- `apps/tvos/`: SwiftUI tvOS app, checked-in Xcode project and UI checks.
+- `server/`: Go service, configuration example and HTTP contract tests.
+- `packages/HealthClient/`: reusable Swift network client and command-line integration probe.
+- `docs/architecture.md`: ownership boundaries and dependency rules for future increments.
 - `.scratch/nestplay/` and `.scratch/nestplay-health/`: canonical local Wayfinder maps and tickets.
 - `docs/research/`: architecture and component research.
-- `docs/wayfinder-export/`: preserved review snapshot from before repository consolidation.
 
 Perch, Jellyfin and YouTube packages are not dependencies of this first milestone.
 
@@ -63,7 +63,7 @@ make test
 make server
 ```
 
-To regenerate the Xcode project after changing `tvos/project.yml`, run `make project` with XcodeGen installed. Regeneration is not required to open the checked-in project.
+To regenerate the Xcode project after changing `apps/tvos/project.yml`, run `make project` with XcodeGen installed. Regeneration is not required to open the checked-in project.
 
 With the server running on port 8765, run the Nestplay scheme's tests in a tvOS simulator. The UI checks cover a successful real-server response and an unreachable endpoint with retry available. The portable Swift package tests malformed responses, wrong server/version, address validation and network failure.
 

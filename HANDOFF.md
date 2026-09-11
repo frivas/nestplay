@@ -8,7 +8,7 @@ The first executable milestone exists and passes its automated checks. A small G
 
 The full PoC has not been built. YouTube, media indexing, playback, Jellyfin, metadata, subtitles and storage supervision are deliberate later increments.
 
-Source: this directory. Canonical architecture tracker: `.scratch/nestplay/map.md`. Canonical health milestone tracker: `.scratch/nestplay-health/map.md`. Research is in `docs/research/`; the earlier review snapshot is preserved in `docs/wayfinder-export/`.
+Source: this directory. Canonical architecture tracker: `.scratch/nestplay/map.md`. Canonical health milestone tracker: `.scratch/nestplay-health/map.md`. Research is in `docs/research/`.
 
 ## Product destination and accepted requirements
 
@@ -76,11 +76,11 @@ Detailed evidence is in `docs/research/architecture-findings.md`, `youtube-sessi
 
 `server/main.go` uses only Go's standard library. Default listen address is `0.0.0.0:8765`; `-listen` overrides an optional JSON `-config`. It supplies read-header/write/idle timeouts, a small maximum header size, graceful signal shutdown, exact method/path routing and an uncached JSON health response.
 
-`HealthClient/Sources/HealthClient/HealthClient.swift` is the reusable network boundary. It accepts only HTTP(S) base URLs with no credentials, query, fragment or non-root path, appends `/health`, uses an ephemeral no-cache session and validates the response contract. Its command-line `health-probe` makes end-to-end checks possible without the UI.
+`packages/HealthClient/Sources/HealthClient/HealthClient.swift` is the reusable network boundary. It accepts only HTTP(S) base URLs with no credentials, query, fragment or non-root path, appends `/health`, uses an ephemeral no-cache session and validates the response contract. Its command-line `health-probe` makes end-to-end checks possible without the UI.
 
-`tvos/Nestplay/ConnectionView.swift` is the only screen. It persists the submitted address with `AppStorage`, displays connection state and takes `--server-url` for automated UI checks. `Info.plist` explains local-network access and permits local networking without a broad arbitrary-load exception.
+`apps/tvos/Nestplay/ConnectionView.swift` is the only screen. It persists the submitted address with `AppStorage`, displays connection state and takes `--server-url` for automated UI checks. `Info.plist` explains local-network access and permits local networking without a broad arbitrary-load exception.
 
-`tvos/project.yml` is the source for the generated checked-in Xcode project. Use XcodeGen after changing project structure. Signing team and user-specific identifiers are intentionally absent.
+`apps/tvos/project.yml` is the source for the generated checked-in Xcode project. Use XcodeGen after changing project structure. Signing team and user-specific identifiers are intentionally absent.
 
 ## Verification already completed
 
@@ -100,14 +100,14 @@ Routine commands from this directory:
 ```sh
 make test
 make server
-./bin/nestplay-server
-cd tvos && xcodegen generate
+.build/bin/nestplay-server
+cd apps/tvos && xcodegen generate
 ```
 
 The exact simulator test requires the server running on `127.0.0.1:8765`, then:
 
 ```sh
-xcodebuild -project tvos/Nestplay.xcodeproj -scheme Nestplay \
+xcodebuild -project apps/tvos/Nestplay.xcodeproj -scheme Nestplay \
   -destination 'platform=tvOS Simulator,name=Apple TV' \
   -derivedDataPath /private/tmp/nestplay-sim-derived \
   CODE_SIGNING_ALLOWED=NO test
@@ -125,7 +125,7 @@ Run the five acceptance checks in `VALIDATION.md`: connect; stop server and see 
 
 - `/health` is unauthenticated plain HTTP. It reveals only fixed service/version status. This is acceptable for this narrow LAN proof, not for future account or library endpoints.
 - Binding `0.0.0.0` reaches every Mac interface. The later security/pairing decision must define LAN identity and access; “no port forwarding” is not access control.
-- The checked-in `bin/nestplay-server` is an unsigned Apple Silicon development artifact. Rebuild from source if host compatibility or trust is uncertain.
+- The server binary is generated under `.build/bin/` and is never committed. Build it from source with `make server`.
 - No project license has been chosen. Do not distribute beyond the private PoC until licensing is decided.
 - Simulator success does not prove physical Apple TV networking, signing, firewall behavior or remote focus.
 - Local session-cookie import for YouTube is accepted but not implemented. YouTube's official API does not provide personalized Home. Cookie validity and reconnection need live proof.
@@ -151,6 +151,6 @@ My recommendation is to keep each milestone vertically testable through the TV: 
 
 ## Repository and handoff integrity
 
-This directory was created as a standalone local Git repository on branch `develop` after validation. There is no remote and nothing has been pushed. The initial commit should contain source, generated Xcode project, tests, validation, Wayfinder-aware instructions and this handoff. If the tree is not clean, inspect every change before continuing; never discard user work.
+This repository lives at `/Users/francisco/Downloads/Projects/nestplay` on branch `develop`. Its `origin` remote is the private GitHub repository `frivas/nestplay`. The initial commit should contain source, generated Xcode project, tests, validation, Wayfinder-aware instructions and this handoff. If the tree is not clean, inspect every change before continuing; never discard user work.
 
-The Apple Silicon development server binary is committed in `bin/` so this handoff can run immediately. Source remains authoritative. Swift/Xcode build products and Xcode user data remain ignored.
+Generated binaries, Swift/Xcode build products and Xcode user data remain ignored.
