@@ -1,0 +1,42 @@
+name: Nestplay
+options:
+  bundleIdPrefix: local.nestplay
+  deploymentTarget:
+    tvOS: '17.0'
+packages:
+  HealthClient:
+    path: ../HealthClient
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    GENERATE_INFOPLIST_FILE: NO
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Nestplay:
+    type: application
+    platform: tvOS
+    sources: [Nestplay]
+    dependencies:
+      - package: HealthClient
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.nestplay.poc
+        INFOPLIST_FILE: Nestplay/Info.plist
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+  NestplayUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources: [NestplayUITests]
+    dependencies:
+      - target: Nestplay
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Nestplay:
+    build:
+      targets:
+        Nestplay: all
+    test:
+      targets: [NestplayUITests]
