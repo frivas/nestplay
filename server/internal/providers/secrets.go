@@ -27,7 +27,6 @@ func SecretsFileCandidates() []string {
 // providers. NESTPLAY_PROVIDERS_FILE, when set, is the only path consulted and
 // must exist. A present file with a paid plan is fatal.
 func LoadOptionalConfig() (Config, string, error) {
-	cfg := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree}
 	if override := strings.TrimSpace(os.Getenv("NESTPLAY_PROVIDERS_FILE")); override != "" {
 		return loadFile(override, true)
 	}
@@ -40,7 +39,7 @@ func LoadOptionalConfig() (Config, string, error) {
 			return loaded, used, nil
 		}
 	}
-	return cfg, "", nil
+	return defaultConfig(), "", nil
 }
 
 func loadFile(path string, required bool) (Config, string, error) {
@@ -65,7 +64,7 @@ func loadFile(path string, required bool) (Config, string, error) {
 }
 
 func parseEnv(contents string) (Config, error) {
-	cfg := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree}
+	cfg := defaultConfig()
 	scanner := bufio.NewScanner(strings.NewReader(contents))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -93,18 +92,32 @@ func parseEnv(contents string) (Config, error) {
 			}
 			cfg.OpenSubtitlesPlan = plan
 		case "OPENSUBTITLES_DEV_MODE":
-			switch strings.ToLower(value) {
-			case "", "0", "false", "no":
-				cfg.OpenSubtitlesDevMode = false
-			case "1", "true", "yes":
-				cfg.OpenSubtitlesDevMode = true
-			default:
-				return Config{}, fmt.Errorf("OPENSUBTITLES_DEV_MODE: invalid value")
+			flag, err := parseBool(value)
+			if err != nil {
+				return Config{}, fmt.Errorf("OPENSUBTITLES_DEV_MODE: %w", err)
 			}
+			cfg.OpenSubtitlesDevMode = flag
+		case "OPENSUBTITLES_ANONYMOUS":
+			flag, err := parseBool(value)
+			if err != nil {
+				return Config{}, fmt.Errorf("OPENSUBTITLES_ANONYMOUS: %w", err)
+			}
+			cfg.OpenSubtitlesAnonymous = flag
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func parseBool(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "1", "true", "yes":
+		return true, nil
+	case "0", "false", "no":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean %q", value)
+	}
 }

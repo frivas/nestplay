@@ -7,8 +7,13 @@ into chat or commit them.
 Nestplay accepts only unpaid plans:
 
 - TMDB developer/personal API (non-commercial)
-- OpenSubtitles.com **Free** consumer ($0, 5 downloads/24h). Do not buy Light,
-  Startup, Basic, Premium, Pro, Enterprise, or a VIP package. Do not enable
-  `dev_mode`.
+- OpenSubtitles.com **Free** consumer. Do not buy Light, Startup, Basic,
+  Premium, Pro, Enterprise, or a VIP package.
 
+The PoC consumer has **Allow anonymous downloads** and **Under dev** enabled:
+downloads use the API key only (no user JWT), up to 100 per 24 hours. Search
+does not spend that quota. Nestplay still skips local Spanish tracks, machine
+translations, and weak name-only matches.
+
+Username and password stay optional while those consumer flags remain on.
 Override the path with `NESTPLAY_PROVIDERS_FILE` if needed.

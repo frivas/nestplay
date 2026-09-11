@@ -23,40 +23,63 @@ func TestParsePlanRejectsPaidAndUnknown(t *testing.T) {
 	}
 }
 
-func TestConfigValidateRejectsDevModeAndPaid(t *testing.T) {
-	ok := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree}
+func TestConfigValidateAllowsUnderDevRejectsPaid(t *testing.T) {
+	ok := defaultConfig()
 	if err := ok.Validate(); err != nil {
 		t.Fatal(err)
+	}
+	if ok.DownloadCeiling() != FreeOpenSubtitlesDevDownloadsPerDay {
+		t.Fatalf("under-dev ceiling = %d", ok.DownloadCeiling())
+	}
+	if !ok.AllowsAnonymousDownload() {
+		t.Fatal("under-dev consumer downloads without JWT")
 	}
 	paid := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: Plan("vip")}
 	if err := paid.Validate(); !errors.Is(err, ErrPaidPlan) {
 		t.Fatalf("paid plan: %v", err)
 	}
-	dev := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree, OpenSubtitlesDevMode: true}
-	if err := dev.Validate(); !errors.Is(err, ErrDevMode) {
-		t.Fatalf("dev mode: %v", err)
+	anonOnly := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree, OpenSubtitlesAnonymous: true}
+	if anonOnly.DownloadCeiling() != FreeOpenSubtitlesAnonymousDownloadsPerDay {
+		t.Fatalf("anonymous ceiling = %d", anonOnly.DownloadCeiling())
+	}
+}
+
+func TestCheckAPIHostRejectsVIP(t *testing.T) {
+	if err := CheckAPIHost("api.opensubtitles.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckAPIHost("https://vip-api.opensubtitles.com"); !errors.Is(err, ErrVIPEndpoint) {
+		t.Fatalf("vip host: %v", err)
+	}
+}
+
+func TestEncodeQuerySortsAndUsesPlus(t *testing.T) {
+	got := EncodeQuery(map[string]string{"query": "The Matrix", "languages": "es"})
+	if got != "languages=es&query=The+Matrix" {
+		t.Fatalf("got %q", got)
 	}
 }
 
 func TestValidateFreeAccountRejectsVIPAndHighQuota(t *testing.T) {
-	free := OpenSubtitlesAccount{AllowedDownloads: 5, RemainingDownloads: 5, RemainingKnown: true}
-	if err := free.ValidateFreeAccount(); err != nil {
+	cfg := defaultConfig()
+	free := OpenSubtitlesAccount{AllowedDownloads: 100, RemainingDownloads: 100, RemainingKnown: true}
+	if err := free.ValidateFreeAccount(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := (OpenSubtitlesAccount{VIP: true, AllowedDownloads: 5}).ValidateFreeAccount(); !errors.Is(err, ErrPaidAccount) {
+	if err := (OpenSubtitlesAccount{VIP: true, AllowedDownloads: 100}).ValidateFreeAccount(cfg); !errors.Is(err, ErrPaidAccount) {
 		t.Fatalf("vip: %v", err)
 	}
-	if err := (OpenSubtitlesAccount{Level: "VIP Member", AllowedDownloads: 5}).ValidateFreeAccount(); !errors.Is(err, ErrPaidAccount) {
+	if err := (OpenSubtitlesAccount{Level: "VIP Member", AllowedDownloads: 100}).ValidateFreeAccount(cfg); !errors.Is(err, ErrPaidAccount) {
 		t.Fatalf("level: %v", err)
 	}
-	if err := (OpenSubtitlesAccount{AllowedDownloads: 1000}).ValidateFreeAccount(); !errors.Is(err, ErrPaidAccount) {
+	if err := (OpenSubtitlesAccount{AllowedDownloads: 1000}).ValidateFreeAccount(cfg); !errors.Is(err, ErrPaidAccount) {
 		t.Fatalf("1000/day: %v", err)
 	}
 }
 
 func TestAuthorizeDownloadProtectsQuota(t *testing.T) {
-	cfg := Config{TMDBPlan: PlanFree, OpenSubtitlesPlan: PlanFree}
-	account := OpenSubtitlesAccount{AllowedDownloads: 5, RemainingDownloads: 5, RemainingKnown: true}
+	cfg := defaultConfig()
+	account := OpenSubtitlesAccount{AllowedDownloads: 100, RemainingDownloads: 100, RemainingKnown: true}
 	now := time.Date(2026, 9, 11, 16, 0, 0, 0, time.UTC)
 	hash := SubtitleCandidate{HashMatch: true}
 	emptyLocal := LocalSpanish{}
@@ -77,16 +100,20 @@ func TestAuthorizeDownloadProtectsQuota(t *testing.T) {
 	if err := AuthorizeDownload(cfg, account, budget, emptyLocal, SubtitleCandidate{}, now); !errors.Is(err, ErrWeakMatch) {
 		t.Fatalf("name-only: %v", err)
 	}
-	spent := Budget{Day: now, Downloads: FreeOpenSubtitlesDownloadsPerDay}
+	spent := Budget{Day: now, Downloads: cfg.DownloadCeiling()}
 	if err := AuthorizeDownload(cfg, account, spent, emptyLocal, hash, now); !errors.Is(err, ErrQuotaExhausted) {
 		t.Fatalf("budget: %v", err)
 	}
-	reset := Budget{Day: now.Add(-24 * time.Hour), Downloads: FreeOpenSubtitlesDownloadsPerDay}
+	reset := Budget{Day: now.Add(-24 * time.Hour), Downloads: cfg.DownloadCeiling()}
 	if err := AuthorizeDownload(cfg, account, reset, emptyLocal, hash, now); err != nil {
 		t.Fatalf("next UTC day should reset: %v", err)
 	}
-	tight := OpenSubtitlesAccount{AllowedDownloads: 5, RemainingDownloads: 0, RemainingKnown: true}
+	tight := OpenSubtitlesAccount{AllowedDownloads: 100, RemainingDownloads: 0, RemainingKnown: true}
 	if err := AuthorizeDownload(cfg, tight, budget, emptyLocal, hash, now); !errors.Is(err, ErrQuotaExhausted) {
 		t.Fatalf("provider remaining: %v", err)
+	}
+	mid := Budget{Day: now, Downloads: 5}
+	if err := AuthorizeDownload(cfg, account, mid, emptyLocal, hash, now); err != nil {
+		t.Fatalf("under-dev still has quota after 5: %v", err)
 	}
 }

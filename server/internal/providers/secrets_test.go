@@ -12,18 +12,25 @@ func TestParseEnvDefaultsToFreeAndRejectsPaid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.TMDBPlan != PlanFree || cfg.OpenSubtitlesPlan != PlanFree || cfg.OpenSubtitlesDevMode {
+	if cfg.TMDBPlan != PlanFree || cfg.OpenSubtitlesPlan != PlanFree || !cfg.OpenSubtitlesDevMode || !cfg.OpenSubtitlesAnonymous {
 		t.Fatalf("%+v", cfg)
 	}
 	if _, err := parseEnv("OPENSUBTITLES_PLAN=vip\n"); !errors.Is(err, ErrPaidPlan) {
 		t.Fatalf("vip: %v", err)
 	}
-	dev, err := parseEnv("OPENSUBTITLES_DEV_MODE=true\n")
+	dev, err := parseEnv("OPENSUBTITLES_DEV_MODE=true\nOPENSUBTITLES_ANONYMOUS=true\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := dev.Validate(); !errors.Is(err, ErrDevMode) {
+	if err := dev.Validate(); err != nil {
 		t.Fatalf("dev validate: %v", err)
+	}
+	off, err := parseEnv("OPENSUBTITLES_DEV_MODE=false\nOPENSUBTITLES_ANONYMOUS=false\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off.OpenSubtitlesDevMode || off.OpenSubtitlesAnonymous {
+		t.Fatalf("explicit false: %+v", off)
 	}
 }
 
@@ -59,7 +66,7 @@ func TestLoadOptionalConfigMissingIsOKPaidFileFails(t *testing.T) {
 	}
 
 	free := filepath.Join(dir, "free.env")
-	if err := os.WriteFile(free, []byte("TMDB_PLAN=free\nOPENSUBTITLES_PLAN=free\nOPENSUBTITLES_DEV_MODE=false\n"), 0o600); err != nil {
+	if err := os.WriteFile(free, []byte("TMDB_PLAN=free\nOPENSUBTITLES_PLAN=free\nOPENSUBTITLES_DEV_MODE=true\nOPENSUBTITLES_ANONYMOUS=true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("NESTPLAY_PROVIDERS_FILE", free)
