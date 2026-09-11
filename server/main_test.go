@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestHealthContract(t *testing.T) {
 	w := httptest.NewRecorder()
-	apiHandler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
+	apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
@@ -40,12 +42,14 @@ func TestUnsupportedRoutes(t *testing.T) {
 	}{
 		{http.MethodGet, "/", http.StatusNotFound},
 		{http.MethodGet, "/health/extra", http.StatusNotFound},
+		{http.MethodGet, "/library/extra", http.StatusNotFound},
+		{http.MethodPost, "/library", http.StatusMethodNotAllowed},
 		{http.MethodPost, "/health", http.StatusMethodNotAllowed},
 		{http.MethodGet, "/debug/log", http.StatusMethodNotAllowed},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			apiHandler().ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
+			apiHandler("").ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
 			if w.Code != tc.status {
 				t.Fatalf("got %d want %d", w.Code, tc.status)
 			}
@@ -64,7 +68,7 @@ func TestDebugLogAcceptsJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(
 		`{"source":"tvos","level":"info","message":"check started"}`))
-	apiHandler().ServeHTTP(w, req)
+	apiHandler("").ServeHTTP(w, req)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d", w.Code)
 	}
@@ -73,14 +77,14 @@ func TestDebugLogAcceptsJSON(t *testing.T) {
 func TestDebugLogRejectsInvalidAndOversize(t *testing.T) {
 	t.Run("invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		apiHandler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader("not-json")))
+		apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader("not-json")))
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("got %d want 400", w.Code)
 		}
 	})
 	t.Run("missing message", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		apiHandler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(`{"level":"info"}`)))
+		apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(`{"level":"info"}`)))
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("got %d want 400", w.Code)
 		}
@@ -88,9 +92,58 @@ func TestDebugLogRejectsInvalidAndOversize(t *testing.T) {
 	t.Run("too large", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		body := `{"message":"` + strings.Repeat("x", maxDebugBody) + `"}`
-		apiHandler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(body)))
+		apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(body)))
 		if w.Code != http.StatusRequestEntityTooLarge && w.Code != http.StatusBadRequest {
 			t.Fatalf("got %d want 413 or 400", w.Code)
+		}
+	})
+}
+
+func TestLibraryJSON(t *testing.T) {
+	t.Run("empty root", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/library", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		if w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("library must not be cached")
+		}
+		var body struct {
+			Items []struct {
+				ID       string `json:"id"`
+				Title    string `json:"title"`
+				Filename string `json:"filename"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Items) != 0 {
+			t.Fatalf("got %+v", body.Items)
+		}
+	})
+	t.Run("watched folder", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "Heat.mkv"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		apiHandler(root).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/library", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		var body struct {
+			Items []struct {
+				Title    string `json:"title"`
+				Filename string `json:"filename"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Items) != 1 || body.Items[0].Title != "Heat" || body.Items[0].Filename != "Heat.mkv" {
+			t.Fatalf("got %+v", body.Items)
 		}
 	})
 }

@@ -5,6 +5,8 @@ import SwiftUI
 struct ConnectionView: View {
   @State private var address = PocServer.address
   @State private var state: ConnectionState = .ready
+  @State private var catalog: [CatalogItem] = []
+  @State private var catalogMessage = ""
   @State private var checkTask: Task<Void, Never>?
   private let log = Logger(subsystem: "local.nestplay.poc", category: "connection")
 
@@ -52,6 +54,9 @@ struct ConnectionView: View {
           }
           Text(detail).font(.system(size: 23)).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          if case .connected = state {
+            catalogView
+          }
         }
         .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
         Text("Traces from this Apple TV are printed by the Nestplay server.")
@@ -83,7 +88,7 @@ struct ConnectionView: View {
     switch state {
     case .ready: "The first check confirms your Apple TV can reach the server."
     case .checking: "Contacting your Mac…"
-    case .connected: "Your Mac is reachable and ready. Media features will follow."
+    case .connected: "Your Mac is reachable. The list below is read-only."
     case .failed(let message): message
     }
   }
@@ -91,14 +96,14 @@ struct ConnectionView: View {
     switch state {
     case .connected: "checkmark.circle.fill"
     case .failed: "wifi.exclamationmark"
-    default: "desktopcomputer"
+    case .ready, .checking: "desktopcomputer"
     }
   }
   private var statusColor: Color {
     switch state {
     case .connected: .green
     case .failed: .orange
-    default: .secondary
+    case .ready, .checking: .secondary
     }
   }
   private func check() {
@@ -106,6 +111,8 @@ struct ConnectionView: View {
     checkTask?.cancel()
     let submitted = address
     state = .checking
+    catalog = []
+    catalogMessage = ""
     trace("info", "check started address=\(submitted)")
     checkTask = Task { @MainActor in
       do {
@@ -116,6 +123,17 @@ struct ConnectionView: View {
         }
         trace("info", "check connected address=\(submitted)")
         state = .connected
+        do {
+          let library = try await HealthClient().library(address: submitted)
+          guard !Task.isCancelled else { return }
+          catalog = library.items
+          catalogMessage = library.items.isEmpty ? "No videos in the watched folder yet." : ""
+          trace("info", "library loaded count=\(library.items.count)")
+        } catch {
+          guard !Task.isCancelled else { return }
+          catalogMessage = "Connected, but the library list could not be loaded."
+          trace("error", "library failed error=\(error.localizedDescription)")
+        }
       } catch {
         guard !Task.isCancelled else {
           trace("debug", "check cancelled address=\(submitted)")
@@ -124,6 +142,23 @@ struct ConnectionView: View {
         trace("error", "check failed address=\(submitted) error=\(error.localizedDescription)")
         state = .failed(error.localizedDescription)
       }
+    }
+  }
+
+  @ViewBuilder private var catalogView: some View {
+    if !catalogMessage.isEmpty {
+      Text(catalogMessage)
+        .font(.system(size: 23))
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("libraryEmpty")
+    }
+    if !catalog.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(catalog) { item in
+          Text(item.title).font(.title3)
+        }
+      }
+      .accessibilityIdentifier("libraryCatalog")
     }
   }
 

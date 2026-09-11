@@ -85,3 +85,14 @@ private struct OfflineTransport: HealthTransport {
   let event = try JSONDecoder().decode(DebugEvent.self, from: request?.httpBody ?? Data())
   #expect(event == DebugEvent(source: "tvos", level: "info", message: "check started"))
 }
+
+@Test func loadsLibraryFromEndpoint() async throws {
+  let transport = StubTransport(
+    body: "{\"items\":[{\"id\":\"abc\",\"title\":\"Heat\",\"filename\":\"Heat.mkv\"}]}")
+  let library = try await HealthClient(transport: transport).library(address: "http://mac.local")
+  #expect(library.items.count == 1)
+  #expect(library.items[0].title == "Heat")
+  let request = await transport.request
+  #expect(request?.url?.absoluteString == "http://mac.local/library")
+  #expect(request?.httpMethod == "GET")
+}

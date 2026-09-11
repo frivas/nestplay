@@ -70,6 +70,36 @@ public struct HealthClient: Sendable {
     }
     return health
   }
+
+  public func library(address: String) async throws -> Catalog {
+    let endpoint = try nestplayEndpoint(address: address, path: "/library")
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "GET"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 5
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let library = try? JSONDecoder().decode(Catalog.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return library
+  }
+}
+
+public struct Catalog: Decodable, Sendable, Equatable {
+  public let items: [CatalogItem]
+}
+
+public struct CatalogItem: Decodable, Sendable, Equatable, Identifiable {
+  public let id: String
+  public let title: String
+  public let filename: String
 }
 
 func nestplayEndpoint(address: String, path: String) throws -> URL {

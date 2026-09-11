@@ -12,7 +12,7 @@ make run
 
 It listens on port 8765. The tvOS PoC checks `http://aquinas.local:8765` by itself. Use the Mac's address, not `localhost`, on a physical Apple TV. If `.local` fails, the fallback is the Mac LAN IP on port 8765.
 
-If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes only a health response, with no media or account data.
+If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health and a read-only local catalog. YouTube, downloads, and playback are still deferred.
 
 Optional configuration:
 
@@ -43,7 +43,9 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 {"service":"nestplay","status":"ok","api_version":1}
 ```
 
-`POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac. Other paths return 404 and unsupported methods return 405. This is a liveness check for the basic server, not a claim that future YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
+`POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac.
+
+`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename" } ] }`. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`. Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog, not a claim that YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 

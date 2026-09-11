@@ -14,15 +14,18 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"nestplay.local/server/internal/catalog"
 )
 
 type config struct {
-	Listen string `json:"listen"`
+	Listen      string `json:"listen"`
+	LibraryRoot string `json:"library_root"`
 }
 
 const maxDebugBody = 64 << 10
 
-func apiHandler() http.Handler {
+func apiHandler(libraryRoot string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -33,8 +36,24 @@ func apiHandler() http.Handler {
 			APIVersion int    `json:"api_version"`
 		}{"nestplay", "ok", 1})
 	})
+	mux.HandleFunc("GET /library", libraryHandler(libraryRoot))
 	mux.HandleFunc("POST /debug/log", debugLogHandler)
 	return mux
+}
+
+func libraryHandler(root string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		items, err := catalog.List(root)
+		if err != nil {
+			http.Error(w, "library unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(struct {
+			Items []catalog.Item `json:"items"`
+		}{Items: items})
+	}
 }
 
 func sanitizeLog(s string) string {
@@ -75,6 +94,7 @@ func debugLogHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	configPath := flag.String("config", "", "optional JSON configuration file")
 	listen := flag.String("listen", "", "listen address; overrides configuration")
+	libraryRoot := flag.String("library-root", "", "watched folder; overrides configuration")
 	flag.Parse()
 	cfg := config{Listen: "0.0.0.0:8765"}
 	if *configPath != "" {
@@ -89,11 +109,14 @@ func main() {
 	if *listen != "" {
 		cfg.Listen = *listen
 	}
+	if *libraryRoot != "" {
+		cfg.LibraryRoot = *libraryRoot
+	}
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
 	}
 	server := &http.Server{
-		Addr: cfg.Listen, Handler: apiHandler(),
+		Addr: cfg.Listen, Handler: apiHandler(cfg.LibraryRoot),
 		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 	}
@@ -101,7 +124,7 @@ func main() {
 	defer stop()
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nPOST /debug/log\n", cfg.Listen)
 	select {
 	case err := <-done:
 		if !errors.Is(err, http.ErrServerClosed) {
