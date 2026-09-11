@@ -1,6 +1,6 @@
 # Nestplay connection PoC
 
-The first incremental Nestplay milestone: a Go server and a native tvOS app that checks its health over the LAN. Media features are intentionally deferred to later Wayfinder decisions.
+The first incremental Nestplay milestone: a Go server and a native tvOS app that checks its health over the LAN. For this PoC the Apple TV uses the fixed address `http://aquinas.local:8765` and checks it on launch. It also sends debug traces to `POST /debug/log`, which the server prints. Media features are intentionally deferred to later Wayfinder decisions.
 
 ## Run the server
 
@@ -10,7 +10,7 @@ Build and run the Go server from the repository root:
 make run
 ```
 
-It listens on port 8765. On Apple TV, enter `http://<Mac local hostname>.local:8765` or `http://<Mac LAN IP>:8765`. Find the local hostname in macOS System Settings → General → Sharing. Use the Mac's address, not `localhost`, on a physical Apple TV.
+It listens on port 8765. The tvOS PoC checks `http://aquinas.local:8765` by itself. Use the Mac's address, not `localhost`, on a physical Apple TV. If `.local` fails, the fallback is the Mac LAN IP on port 8765.
 
 If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes only a health response, with no media or account data.
 
@@ -28,12 +28,12 @@ Stop with Control-C. To rebuild, install Go 1.23 or newer and run `make server`.
 1. Open `apps/tvos/Nestplay.xcodeproj` in Xcode.
 2. Select the Nestplay app target. For a physical Apple TV, select your signing team and an available bundle identifier under Signing & Capabilities. The checked-in project does not select an account or team.
 3. Pair/select the Apple TV in Xcode's Devices and Simulators window. Enable Developer Mode if the device requests it, then build and run.
-4. Enter the Mac address and select **Check connection**. Accept local-network access if requested.
-5. Expect **Connected to Nestplay**. Stop the server and check again to see an actionable failure; restart and retry to recover.
+4. Run the app. It checks `http://aquinas.local:8765` automatically. Accept local-network access if requested. Use **Check connection** to retry. UI tests may still pass `--server-url`.
+5. Expect **Connected to Nestplay**. Stop the server and check again to see an actionable failure; restart and retry to recover. Watch the Mac terminal for `GET /health` and `tvos …` debug lines.
 
 Target: Apple TV HD A1625 with tvOS 26.6. The app's minimum deployment target is tvOS 17. The simulator uses `http://127.0.0.1:8765` to reach the Mac. Simulator success is not a claim of physical-device acceptance.
 
-The app remembers the entered address. It displays ready, checking, connected and failure states; validates service identity/API version; and times out instead of waiting indefinitely. It uses a scoped local-network transport exception, not unrestricted HTTP access.
+The PoC address is fixed. The app displays ready, checking, connected and failure states; validates service identity/API version; and times out instead of waiting indefinitely. It uses a scoped local-network transport exception, not unrestricted HTTP access.
 
 ## Health contract
 
@@ -43,7 +43,7 @@ The app remembers the entered address. It displays ready, checking, connected an
 {"service":"nestplay","status":"ok","api_version":1}
 ```
 
-Other paths return 404 and unsupported methods return 405. This is a liveness check for the basic server, not a claim that future YouTube, storage or playback dependencies are ready.
+`POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac. Other paths return 404 and unsupported methods return 405. This is a liveness check for the basic server, not a claim that future YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 

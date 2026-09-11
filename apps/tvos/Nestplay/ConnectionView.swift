@@ -1,10 +1,12 @@
 import HealthClient
+import OSLog
 import SwiftUI
 
 struct ConnectionView: View {
-  @AppStorage("serverAddress") private var address = ""
+  @State private var address = PocServer.address
   @State private var state: ConnectionState = .ready
   @State private var checkTask: Task<Void, Never>?
+  private let log = Logger(subsystem: "local.nestplay.poc", category: "connection")
 
   private enum ConnectionState {
     case ready, checking, connected
@@ -28,19 +30,15 @@ struct ConnectionView: View {
         Text("NESTPLAY").font(.system(size: 24, weight: .semibold)).tracking(5).foregroundStyle(
           .secondary)
         Text("Your library starts here.").font(.system(size: 56, weight: .semibold))
-        Text("Start the Nestplay server on your Mac, then enter its local address.")
+        Text("This PoC uses a fixed Mac address and checks it when the app opens.")
           .font(.title3).foregroundStyle(.secondary)
-        TextField("http://your-mac.local:8765", text: $address)
-          .keyboardType(.URL)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled()
+        Text(address)
+          .font(.title3.monospaced())
+          .foregroundStyle(.secondary)
           .accessibilityLabel("Server address")
           .accessibilityIdentifier("serverAddress")
-          .disabled(checking)
-          .onSubmit { check() }
-          .onChange(of: address) { if !checking { state = .ready } }
         Button(checking ? "Checking…" : "Check connection") { check() }
-          .disabled(checking || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .disabled(checking)
           .accessibilityIdentifier("checkConnection")
         VStack(alignment: .leading, spacing: 12) {
           HStack(spacing: 16) {
@@ -56,7 +54,7 @@ struct ConnectionView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-        Text("Both devices must be on the same local network.")
+        Text("Traces from this Apple TV are printed by the Nestplay server.")
           .font(.system(size: 20)).foregroundStyle(.secondary)
       }
       .frame(width: 1000, alignment: .leading)
@@ -64,15 +62,18 @@ struct ConnectionView: View {
     }
     .preferredColorScheme(.dark)
     .task {
-      // Launch arguments allow the integration test to use the real local server.
       if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "--server-url"),
         ProcessInfo.processInfo.arguments.indices.contains(index + 1)
       {
         address = ProcessInfo.processInfo.arguments[index + 1]
-        check()
+      } else {
+        address = PocServer.address
       }
+      trace("info", "launch address=\(address)")
+      check()
     }
     .onDisappear {
+      trace("debug", "view disappeared state=\(state.title)")
       checkTask?.cancel()
       if checking { state = .ready }
     }
@@ -105,15 +106,34 @@ struct ConnectionView: View {
     checkTask?.cancel()
     let submitted = address
     state = .checking
+    trace("info", "check started address=\(submitted)")
     checkTask = Task { @MainActor in
       do {
         _ = try await HealthClient().check(address: submitted)
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+          trace("debug", "check cancelled address=\(submitted)")
+          return
+        }
+        trace("info", "check connected address=\(submitted)")
         state = .connected
       } catch {
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+          trace("debug", "check cancelled address=\(submitted)")
+          return
+        }
+        trace("error", "check failed address=\(submitted) error=\(error.localizedDescription)")
         state = .failed(error.localizedDescription)
       }
     }
+  }
+
+  private func trace(_ level: String, _ message: String) {
+    switch level {
+    case "error": log.error("\(message, privacy: .public)")
+    case "info": log.info("\(message, privacy: .public)")
+    default: log.debug("\(message, privacy: .public)")
+    }
+    let address = address
+    Task { await DebugLog().report(address: address, level: level, message: message) }
   }
 }
