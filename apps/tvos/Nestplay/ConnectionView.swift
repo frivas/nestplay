@@ -7,8 +7,14 @@ struct ConnectionView: View {
   @State private var state: ConnectionState = .ready
   @State private var catalog: [CatalogItem] = []
   @State private var catalogMessage = ""
+  @State private var surface: Surface = .localLibrary
   @State private var checkTask: Task<Void, Never>?
   private let log = Logger(subsystem: "local.nestplay.poc", category: "connection")
+
+  private enum Surface: Hashable {
+    case localLibrary
+    case youtubeHome
+  }
 
   private enum ConnectionState {
     case ready, checking, connected
@@ -28,42 +34,11 @@ struct ConnectionView: View {
   var body: some View {
     ZStack {
       Color(red: 0.055, green: 0.07, blue: 0.09).ignoresSafeArea()
-      VStack(alignment: .leading, spacing: 30) {
-        Text("NESTPLAY").font(.system(size: 24, weight: .semibold)).tracking(5).foregroundStyle(
-          .secondary)
-        Text("Your library starts here.").font(.system(size: 56, weight: .semibold))
-        Text("This PoC uses a fixed Mac address and checks it when the app opens.")
-          .font(.title3).foregroundStyle(.secondary)
-        Text(address)
-          .font(.title3.monospaced())
-          .foregroundStyle(.secondary)
-          .accessibilityLabel("Server address")
-          .accessibilityIdentifier("serverAddress")
-        Button(checking ? "Checking…" : "Check connection") { check() }
-          .disabled(checking)
-          .accessibilityIdentifier("checkConnection")
-        VStack(alignment: .leading, spacing: 12) {
-          HStack(spacing: 16) {
-            if checking {
-              ProgressView()
-            } else {
-              Image(systemName: statusIcon).foregroundStyle(statusColor)
-            }
-            Text(state.title).font(.title3.weight(.medium)).accessibilityIdentifier(
-              "connectionStatus")
-          }
-          Text(detail).font(.system(size: 23)).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-          if case .connected = state {
-            catalogView
-          }
-        }
-        .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-        Text("Traces from this Apple TV are printed by the Nestplay server.")
-          .font(.system(size: 20)).foregroundStyle(.secondary)
+      if case .connected = state {
+        connectedShell
+      } else {
+        setupShell
       }
-      .frame(width: 1000, alignment: .leading)
-      .padding(60)
     }
     .preferredColorScheme(.dark)
     .task {
@@ -82,6 +57,81 @@ struct ConnectionView: View {
       checkTask?.cancel()
       if checking { state = .ready }
     }
+  }
+
+  private var setupShell: some View {
+    VStack(alignment: .leading, spacing: 30) {
+      Text("NESTPLAY").font(.system(size: 24, weight: .semibold)).tracking(5).foregroundStyle(
+        .secondary)
+      Text("Your library starts here.").font(.system(size: 56, weight: .semibold))
+      Text("This PoC uses a fixed Mac address and checks it when the app opens.")
+        .font(.title3).foregroundStyle(.secondary)
+      Text(address)
+        .font(.title3.monospaced())
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Server address")
+        .accessibilityIdentifier("serverAddress")
+      connectionControls
+      Text("Traces from this Apple TV are printed by the Nestplay server.")
+        .font(.system(size: 20)).foregroundStyle(.secondary)
+    }
+    .frame(width: 1000, alignment: .leading)
+    .padding(60)
+  }
+
+  private var connectedShell: some View {
+    TabView(selection: $surface) {
+      localLibraryTab
+        .tabItem {
+          Text("Local library")
+        }
+        .tag(Surface.localLibrary)
+        .accessibilityIdentifier("localLibraryTab")
+      YouTubeHomeView()
+        .tabItem {
+          Text("YouTube Home")
+        }
+        .tag(Surface.youtubeHome)
+        .accessibilityIdentifier("youtubeHomeTab")
+    }
+  }
+
+  private var localLibraryTab: some View {
+    VStack(alignment: .leading, spacing: 30) {
+      Text("NESTPLAY").font(.system(size: 24, weight: .semibold)).tracking(5).foregroundStyle(
+        .secondary)
+      Text("Local library").font(.system(size: 56, weight: .semibold))
+      Text(address)
+        .font(.title3.monospaced())
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Server address")
+        .accessibilityIdentifier("serverAddress")
+      connectionControls
+      catalogView
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .padding(60)
+    .accessibilityIdentifier("localLibrarySurface")
+  }
+
+  private var connectionControls: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Button(checking ? "Checking…" : "Check connection") { check() }
+        .disabled(checking)
+        .accessibilityIdentifier("checkConnection")
+      HStack(spacing: 16) {
+        if checking {
+          ProgressView()
+        } else {
+          Image(systemName: statusIcon).foregroundStyle(statusColor)
+        }
+        Text(state.title).font(.title3.weight(.medium)).accessibilityIdentifier(
+          "connectionStatus")
+      }
+      Text(detail).font(.system(size: 23)).foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
   }
 
   private var detail: String {
@@ -111,6 +161,7 @@ struct ConnectionView: View {
     checkTask?.cancel()
     let submitted = address
     state = .checking
+    surface = .localLibrary
     catalog = []
     catalogMessage = ""
     trace("info", "check started address=\(submitted)")
