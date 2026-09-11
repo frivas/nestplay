@@ -1,6 +1,6 @@
 # Nestplay working agreement
 
-Use Wayfinder for every increment. Start with the canonical GitHub maps at https://github.com/frivas/nestplay/issues/2 and https://github.com/frivas/nestplay/issues/1; keep the `.scratch` mirrors synchronized, then claim one ticket before work. Its Notes must explicitly allow execution for a build milestone; otherwise remain in planning. Preserve the distinction between an implemented proof and user acceptance on a physical device.
+Use Wayfinder for every increment. Start with the canonical GitHub maps at https://github.com/frivas/nestplay/issues/2 and https://github.com/frivas/nestplay/issues/1; claim one ticket before work. Its Notes must explicitly allow execution for a build milestone; otherwise remain in planning. Preserve the distinction between an implemented proof and user acceptance on a physical device.
 
 This first milestone only establishes a tvOS-to-Go health check. Do not add YouTube, media playback, profiles or service dependencies without the next scoped ticket. Perch is optional reference material, not a required dependency.
 
