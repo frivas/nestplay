@@ -40,7 +40,7 @@ Every component that writes media must consult the shared storage policy. New do
 
 Playback reads from completed local media. Missing Spanish subtitles remain visible as item status but never make a playable file unavailable.
 
-Configuration and secrets stay on the Mac. YouTube sessions and provider credentials never enter the tvOS app, logs, fixtures or Git.
+Configuration and secrets stay on the Mac. YouTube sessions and provider credentials never enter the tvOS app, logs, fixtures or Git. The PoC uses only unpaid TMDB developer access and the OpenSubtitles.com Free consumer (5 downloads/24h). Paid VIP/Pro plans, `dev_mode`, and weak subtitle matches are rejected in `server/internal/providers`. Local Spanish tracks win over a network download.
 
 ## Change discipline
 

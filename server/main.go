@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"nestplay.local/server/internal/providers"
 )
 
 type config struct {
@@ -91,6 +93,11 @@ func main() {
 	}
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
+	}
+	if _, secretsPath, err := providers.LoadOptionalConfig(); err != nil {
+		log.Fatal(err)
+	} else if secretsPath != "" {
+		log.Printf("using unpaid provider policy from %s", secretsPath)
 	}
 	server := &http.Server{
 		Addr: cfg.Listen, Handler: apiHandler(),
