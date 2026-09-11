@@ -21,22 +21,20 @@ The server's contract tests verify HTTP 200, JSON type, `no-store`, response fie
 
 ## Not yet validated
 
-- Installation, signing and LAN traffic on the physical Apple TV HD A1625 with tvOS 26.6.
-- macOS firewall prompts, network isolation or guest Wi-Fi behavior.
 - Recovery across Mac sleep/wake or hostname/IP changes.
 - Long-running server lifecycle, launch at login, authentication or encryption.
 - Media discovery, playback, YouTube, metadata, subtitles, downloads, disk reserve and Jellyfin. They are outside this milestone.
 
 ## Physical-device acceptance
 
-Start the server and install the app by following README.md. Use `http://aquinas.local:8765` as the first hostname candidate; `aquinas` was the Mac's local hostname when this record was written. Then:
+Checked 11 September 2026 on Living Room (Apple TV HD A1625, 4th generation, tvOS 26.6), signed with a local Personal Team that is not committed. The Mac was `aquinas` at `192.168.1.134` on the same LAN. The PoC uses the fixed address `http://aquinas.local:8765` and prints tvOS traces from `POST /debug/log`.
 
-1. Confirm the app reaches `Connected to Nestplay`.
-2. Stop the server and retry; confirm the failure is readable and does not strand focus.
-3. Restart the server and retry; confirm recovery without reinstalling or re-entering the address.
-4. Restart the Apple TV app; confirm it remembers the address and can check again.
-5. Record any firewall prompt, timing or remote-control usability issue in the open Wayfinder ticket.
+| Check | Result |
+|---|---|
+| Signed install reaches Connected | Passed; no URL entry |
+| Stop server and retry | Passed; **Connection needs attention**, retry remained enabled |
+| Restart server and retry | Passed; `tvos info check connected` |
+| Relaunch app | Passed; automatic recheck connected without typing an address |
+| Firewall / focus / traces | Server logged Apple TV `GET /health` and `tvos info` lines; no focus stranding reported |
 
-Passing those steps resolves physical-device acceptance. Simulator evidence must not be presented as a substitute.
-
-At handoff time, Xcode listed only generic tvOS destinations and simulators. The physical A1625 was not paired or visible to this Mac's Xcode session.
+Simulator evidence is not a substitute for this record.

@@ -74,3 +74,14 @@ private struct OfflineTransport: HealthTransport {
     try await HealthClient(transport: OfflineTransport()).check(address: "http://mac.local")
   }
 }
+
+@Test func postsDebugLogToFixedPath() async throws {
+  let transport = StubTransport()
+  await DebugLog(transport: transport).report(
+    address: "http://mac.local:8765", level: "info", message: "check started")
+  let request = await transport.request
+  #expect(request?.url?.absoluteString == "http://mac.local:8765/debug/log")
+  #expect(request?.httpMethod == "POST")
+  let event = try JSONDecoder().decode(DebugEvent.self, from: request?.httpBody ?? Data())
+  #expect(event == DebugEvent(source: "tvos", level: "info", message: "check started"))
+}

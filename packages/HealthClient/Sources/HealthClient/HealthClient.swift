@@ -49,14 +49,7 @@ public struct HealthClient: Sendable {
   public init(transport: any HealthTransport = SessionTransport()) { self.transport = transport }
 
   public func check(address: String) async throws -> Health {
-    guard var url = URLComponents(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
-      ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-      let host = url.host, !host.isEmpty,
-      url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
-      url.path.isEmpty || url.path == "/"
-    else { throw HealthError.invalidAddress }
-    url.path = "/health"
-    guard let endpoint = url.url else { throw HealthError.invalidAddress }
+    let endpoint = try nestplayEndpoint(address: address, path: "/health")
     var request = URLRequest(url: endpoint)
     request.httpMethod = "GET"
     request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -77,4 +70,16 @@ public struct HealthClient: Sendable {
     }
     return health
   }
+}
+
+func nestplayEndpoint(address: String, path: String) throws -> URL {
+  guard var url = URLComponents(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
+    ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+    let host = url.host, !host.isEmpty,
+    url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+    url.path.isEmpty || url.path == "/"
+  else { throw HealthError.invalidAddress }
+  url.path = path
+  guard let endpoint = url.url else { throw HealthError.invalidAddress }
+  return endpoint
 }

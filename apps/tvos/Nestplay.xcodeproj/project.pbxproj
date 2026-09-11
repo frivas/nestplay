@@ -11,6 +11,7 @@
 		42EB6D819345EBFACC1423C3 /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */; };
 		4616B88A6342931669D48188 /* NestplayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7DE5A9488AE9AD607E7AB8 /* NestplayApp.swift */; };
 		65AD17F8711969BD71A56B0A /* HealthClient in Frameworks */ = {isa = PBXBuildFile; productRef = 80B0336749ECD62CACC04E64 /* HealthClient */; };
+		663FAF1A50868FA3CE87AD94 /* PocServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C7D60394E35DF7E68F6E65 /* PocServer.swift */; };
 		BD848D238CBB9A67C1366B16 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AB342A0FFCC77598C139374 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -32,6 +33,7 @@
 		52FDCACAF31F75163BC0C8FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B8A556C6650FE43A496E242 /* NestplayUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NestplayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
+		B8C7D60394E35DF7E68F6E65 /* PocServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocServer.swift; sourceTree = "<group>"; };
 		D0A6836EB2B45D68F5016FE7 /* Nestplay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Nestplay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -54,6 +56,7 @@
 				859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */,
 				52FDCACAF31F75163BC0C8FA /* Info.plist */,
 				2D7DE5A9488AE9AD607E7AB8 /* NestplayApp.swift */,
+				B8C7D60394E35DF7E68F6E65 /* PocServer.swift */,
 			);
 			path = Nestplay;
 			sourceTree = "<group>";
@@ -193,6 +196,7 @@
 			files = (
 				42EB6D819345EBFACC1423C3 /* ConnectionView.swift in Sources */,
 				4616B88A6342931669D48188 /* NestplayApp.swift in Sources */,
+				663FAF1A50868FA3CE87AD94 /* PocServer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +257,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -273,6 +278,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -354,6 +360,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -367,6 +374,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
