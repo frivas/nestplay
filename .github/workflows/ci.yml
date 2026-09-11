@@ -1,0 +1,208 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "server/**"
+      - "apps/tvos/**"
+      - "packages/HealthClient/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Select jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      server: ${{ steps.decide.outputs.server }}
+      tvos: ${{ steps.decide.outputs.tvos }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Decide which jobs to run
+        id: decide
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mark() {
+            echo "server=$1" >> "$GITHUB_OUTPUT"
+            echo "tvos=$2" >> "$GITHUB_OUTPUT"
+          }
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "workflow_dispatch: run both jobs"
+            mark true true
+            exit 0
+          fi
+
+          files=""
+          if [[ -n "${BEFORE_SHA}" && "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            if git fetch --depth=1 origin "${BEFORE_SHA}"; then
+              head_tree="$(git rev-parse "${GITHUB_SHA}^{tree}")"
+              before_tree="$(git rev-parse "${BEFORE_SHA}^{tree}")"
+              if [[ "${head_tree}" == "${before_tree}" ]]; then
+                echo "Identical tree to previous develop tip; skip verify jobs"
+                mark false false
+                exit 0
+              fi
+              files="$(git diff --name-only "${BEFORE_SHA}" "${GITHUB_SHA}")"
+            fi
+          fi
+
+          if [[ -z "${files}" ]]; then
+            files="$(git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}")"
+          fi
+
+          echo "Changed files:"
+          printf '%s\n' "${files}"
+
+          server=false
+          tvos=false
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            case "${path}" in
+              server/*)
+                server=true
+                ;;
+            esac
+            case "${path}" in
+              apps/tvos/*|packages/HealthClient/*)
+                tvos=true
+                ;;
+            esac
+          done <<< "${files}"
+
+          echo "server=${server} tvos=${tvos}"
+          mark "${server}" "${tvos}"
+
+  server:
+    name: Verify Go server
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache-dependency-path: server/go.mod
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Check module files
+        shell: bash
+        run: |
+          go mod tidy
+          if [[ -n "$(git status --porcelain -- go.mod go.sum)" ]]; then
+            git diff -- go.mod go.sum
+            echo "Run 'go mod tidy' in server and commit the result."
+            exit 1
+          fi
+
+      - name: Install analysis tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2026.1
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+
+      - name: Run Go vet
+        run: go vet ./...
+
+      - name: Run Staticcheck
+        run: staticcheck ./...
+
+      - name: Run tests with race detection and coverage
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Build server
+        run: go build -trimpath -o "${RUNNER_TEMP}/nestplay-server" .
+
+      - name: Check known vulnerabilities
+        run: govulncheck -test ./...
+
+      - name: Run gosec
+        run: gosec -exclude-generated ./...
+
+  tvos:
+    name: Verify tvOS app
+    needs: changes
+    if: needs.changes.outputs.tvos == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Check Swift formatting
+        run: xcrun swift-format lint --recursive --parallel apps/tvos packages/HealthClient
+
+      - name: Test shared Swift package
+        run: swift test --package-path packages/HealthClient --parallel
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Check generated Xcode project
+        shell: bash
+        run: |
+          make project
+          if [[ -n "$(git status --porcelain -- apps/tvos/Nestplay.xcodeproj)" ]]; then
+            git diff -- apps/tvos/Nestplay.xcodeproj
+            echo "Run 'make project' and commit the generated Xcode project."
+            exit 1
+          fi
+
+      - name: Validate property list
+        run: plutil -lint apps/tvos/Nestplay/Info.plist
+
+      - name: Run Xcode static analysis
+        run: >-
+          xcodebuild analyze
+          -project apps/tvos/Nestplay.xcodeproj
+          -scheme Nestplay
+          -destination 'generic/platform=tvOS'
+          -derivedDataPath "${RUNNER_TEMP}/nestplay-analyze"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+
+      - name: Build tvOS app
+        run: >-
+          xcodebuild build
+          -project apps/tvos/Nestplay.xcodeproj
+          -scheme Nestplay
+          -destination 'generic/platform=tvOS'
+          -derivedDataPath "${RUNNER_TEMP}/nestplay-build"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
