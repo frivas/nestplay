@@ -8,7 +8,7 @@ The first executable milestone exists and passes its automated checks. A small G
 
 The full PoC has not been built. YouTube, media indexing, playback, Jellyfin, metadata, subtitles and storage supervision are deliberate later increments.
 
-Source: this directory. Canonical architecture map: https://github.com/frivas/nestplay/issues/2. Canonical health milestone map: https://github.com/frivas/nestplay/issues/1. The `.scratch` directories are versioned mirrors. Research is in `docs/research/`.
+Source: this directory. Canonical architecture map: https://github.com/frivas/nestplay/issues/2. Canonical health milestone map: https://github.com/frivas/nestplay/issues/1. Research is in `docs/research/`.
 
 ## Product destination and accepted requirements
 
@@ -33,9 +33,9 @@ Target hardware observed: server candidate is an M1 Pro MacBook Pro with 16 GB R
 
 ## Wayfinder state
 
-Always use the named Wayfinder skill and the GitHub Issues tracker. Refer to tickets by linked name in user-facing text, not bare numbers. Claim a ticket before work. Resolve it with an `## Answer`, set `Status: resolved`, and append only a one-line pointer to its map. Never resolve more than one non-research ticket in a session.
+Always use the named Wayfinder skill and the GitHub Issues tracker. Refer to tickets by linked name in user-facing text, not bare numbers. Claim a ticket before work. Resolve it with a resolution comment, close the issue, and append only a one-line linked pointer to the map. Never resolve more than one non-research ticket in a session.
 
-The health milestone map, `.scratch/nestplay-health/map.md`, has one resolved ticket:
+The [health milestone map](https://github.com/frivas/nestplay/issues/1) has one resolved ticket:
 
 - **Build and validate the first LAN health check** is resolved at simulator level. Its answer records exact evidence.
 
@@ -43,7 +43,7 @@ Its frontier is:
 
 - **Accept the health check on the Apple TV HD**. Install a signed build on the physical A1625 and run the five checks in `VALIDATION.md`. This is the recommended immediate next task. Do not mark it resolved from simulator evidence.
 
-The parent architecture map, `.scratch/nestplay/map.md`, has three resolved research decisions:
+The [parent architecture map](https://github.com/frivas/nestplay/issues/2) has three resolved research decisions:
 
 - **Establish personalized YouTube access and session lifecycle** selects a replaceable YouTube.js adapter plus yt-dlp, with live account proof remaining.
 - **Select original-language metadata and Spanish subtitle sources** selects TMDB, OpenSubtitles.com and existing YouTube captions, with provider/account and file validation remaining.

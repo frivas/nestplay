@@ -50,7 +50,7 @@ This is a proposed arrangement. Exact authenticated media URL routing and HLS pl
 - Safe simulated/isolated-volume disk-threshold tests and measured resource use.
 - Final acceptance of packaging and the stack after those results.
 
-[Validation plan](validation-plan.md) specifies the bounded proofs. The canonical [Wayfinder map](../../.scratch/nestplay/map.md) indexes resolved research and its child tickets preserve open dependencies.
+[Validation plan](validation-plan.md) specifies the bounded proofs. The canonical [Wayfinder map](https://github.com/frivas/nestplay/issues/2) indexes resolved research and its child tickets preserve open dependencies.
 
 ## Target-device refinement
 

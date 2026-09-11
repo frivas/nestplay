@@ -8,7 +8,7 @@ Nestplay keeps product policy in the Go server and platform behavior in the tvOS
 - `packages/HealthClient` owns the current reusable Swift transport and health response contract.
 - `server` owns the LAN API and will grow into application, domain and adapter packages as each Wayfinder milestone requires them.
 - `docs` holds durable architecture decisions, research and validation guidance.
-- `.scratch` holds the canonical local Wayfinder maps and tickets.
+- GitHub Issues holds the canonical [architecture map](https://github.com/frivas/nestplay/issues/2), [health milestone map](https://github.com/frivas/nestplay/issues/1), child tickets and dependencies.
 
 ## Dependency rules
 

@@ -51,7 +51,6 @@ Other paths return 404 and unsupported methods return 405. This is a liveness ch
 - `server/`: Go service, configuration example and HTTP contract tests.
 - `packages/HealthClient/`: reusable Swift network client and command-line integration probe.
 - `docs/architecture.md`: ownership boundaries and dependency rules for future increments.
-- `.scratch/nestplay/` and `.scratch/nestplay-health/`: versioned mirrors of the canonical GitHub Wayfinder maps and tickets.
 - `docs/research/`: architecture and component research.
 
 Perch, Jellyfin and YouTube packages are not dependencies of this first milestone.
