@@ -97,20 +97,26 @@ struct ConnectionView: View {
   }
 
   private var localLibraryTab: some View {
-    VStack(alignment: .leading, spacing: 30) {
-      Text("NESTPLAY").font(.system(size: 24, weight: .semibold)).tracking(5).foregroundStyle(
-        .secondary)
-      Text("Local library").font(.system(size: 56, weight: .semibold))
-      Text(address)
-        .font(.title3.monospaced())
-        .foregroundStyle(.secondary)
-        .accessibilityLabel("Server address")
-        .accessibilityIdentifier("serverAddress")
-      connectionControls
-      catalogView
+    VStack(alignment: .leading, spacing: 24) {
+      HStack(alignment: .center, spacing: 24) {
+        Text("NESTPLAY")
+          .font(.system(size: 22, weight: .semibold))
+          .tracking(6)
+          .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.72))
+        Spacer()
+        Button(checking ? "Checking…" : "Check connection") { check() }
+          .disabled(checking)
+          .accessibilityIdentifier("checkConnection")
+        Text(state.title)
+          .font(.headline)
+          .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.8))
+          .accessibilityIdentifier("connectionStatus")
+      }
+      LocalLibraryShelf(items: catalog, server: address, emptyMessage: catalogMessage)
     }
+    .padding(.horizontal, 72)
+    .padding(.top, 36)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .padding(60)
     .accessibilityIdentifier("localLibrarySurface")
   }
 
@@ -193,23 +199,6 @@ struct ConnectionView: View {
         trace("error", "check failed address=\(submitted) error=\(error.localizedDescription)")
         state = .failed(error.localizedDescription)
       }
-    }
-  }
-
-  @ViewBuilder private var catalogView: some View {
-    if !catalogMessage.isEmpty {
-      Text(catalogMessage)
-        .font(.system(size: 23))
-        .foregroundStyle(.secondary)
-        .accessibilityIdentifier("libraryEmpty")
-    }
-    if !catalog.isEmpty {
-      VStack(alignment: .leading, spacing: 8) {
-        ForEach(catalog) { item in
-          Text(item.title).font(.title3)
-        }
-      }
-      .accessibilityIdentifier("libraryCatalog")
     }
   }
 

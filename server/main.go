@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"nestplay.local/server/internal/artwork"
 	"nestplay.local/server/internal/catalog"
 )
 
@@ -37,8 +39,16 @@ func apiHandler(libraryRoot string) http.Handler {
 		}{"nestplay", "ok", 1})
 	})
 	mux.HandleFunc("GET /library", libraryHandler(libraryRoot))
+	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(libraryRoot))
 	mux.HandleFunc("POST /debug/log", debugLogHandler)
 	return mux
+}
+
+type libraryItem struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Filename string `json:"filename"`
+	Artwork  string `json:"artwork"`
 }
 
 func libraryHandler(root string) http.HandlerFunc {
@@ -48,12 +58,56 @@ func libraryHandler(root string) http.HandlerFunc {
 			http.Error(w, "library unavailable", http.StatusInternalServerError)
 			return
 		}
+		out := make([]libraryItem, len(items))
+		for i, item := range items {
+			out[i] = libraryItem{
+				ID: item.ID, Title: item.Title, Filename: item.Filename,
+				Artwork: "/library/" + item.ID + "/artwork",
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(struct {
-			Items []catalog.Item `json:"items"`
-		}{Items: items})
+			Items []libraryItem `json:"items"`
+		}{Items: out})
 	}
+}
+
+func artworkHandler(root string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !catalogID(id) {
+			http.NotFound(w, r)
+			return
+		}
+		file, err := catalog.FileForID(root, id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := artwork.JPEG(id, file.Path)
+		if err != nil || !bytes.HasPrefix(data, []byte{0xFF, 0xD8}) {
+			http.Error(w, "artwork unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		http.ServeContent(w, r, id+".jpg", time.Time{}, bytes.NewReader(data))
+	}
+}
+
+func catalogID(id string) bool {
+	if len(id) != 32 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if c >= '0' && c <= '9' || c >= 'a' && c <= 'f' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func sanitizeLog(s string) string {
@@ -124,7 +178,7 @@ func main() {
 	defer stop()
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
 	select {
 	case err := <-done:
 		if !errors.Is(err, http.ErrServerClosed) {

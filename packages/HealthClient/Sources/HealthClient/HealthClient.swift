@@ -100,6 +100,7 @@ public struct CatalogItem: Decodable, Sendable, Equatable, Identifiable {
   public let id: String
   public let title: String
   public let filename: String
+  public let artwork: String
 }
 
 func nestplayEndpoint(address: String, path: String) throws -> URL {

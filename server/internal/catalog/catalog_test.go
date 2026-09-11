@@ -38,6 +38,13 @@ func TestListFindsVideosAndSkipsOthers(t *testing.T) {
 	if items[1].Title != "The Guest" || items[1].Filename != "The Guest.mkv" {
 		t.Fatalf("root file: %+v", items[1])
 	}
+	file, err := FileForID(root, items[1].ID)
+	if err != nil || file.Item.ID != items[1].ID || filepath.Base(file.Path) != "The Guest.mkv" {
+		t.Fatalf("FileForID: %+v %v", file, err)
+	}
+	if _, err := FileForID(root, "missingmissingmissingmissingmiss"); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
 	again, err := List(root)
 	if err != nil || again[0].ID != items[0].ID || again[1].ID != items[1].ID {
 		t.Fatalf("ids must be stable: %+v %+v", items, again)

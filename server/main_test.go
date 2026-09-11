@@ -135,8 +135,10 @@ func TestLibraryJSON(t *testing.T) {
 		}
 		var body struct {
 			Items []struct {
+				ID       string `json:"id"`
 				Title    string `json:"title"`
 				Filename string `json:"filename"`
+				Artwork  string `json:"artwork"`
 			} `json:"items"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
@@ -144,6 +146,29 @@ func TestLibraryJSON(t *testing.T) {
 		}
 		if len(body.Items) != 1 || body.Items[0].Title != "Heat" || body.Items[0].Filename != "Heat.mkv" {
 			t.Fatalf("got %+v", body.Items)
+		}
+		wantArt := "/library/" + body.Items[0].ID + "/artwork"
+		if body.Items[0].Artwork != wantArt {
+			t.Fatalf("artwork = %q", body.Items[0].Artwork)
+		}
+		if strings.Contains(w.Body.String(), root) {
+			t.Fatal("watched-folder path leaked on the wire")
+		}
+		art := httptest.NewRecorder()
+		apiHandler(root).ServeHTTP(art, httptest.NewRequest(http.MethodGet, wantArt, nil))
+		if art.Code != http.StatusOK {
+			t.Fatalf("artwork status = %d", art.Code)
+		}
+		if art.Header().Get("Content-Type") != "image/jpeg" {
+			t.Fatal("artwork must be JPEG")
+		}
+		if len(art.Body.Bytes()) < 2 || art.Body.Bytes()[0] != 0xFF || art.Body.Bytes()[1] != 0xD8 {
+			t.Fatal("artwork is not a JPEG")
+		}
+		missing := httptest.NewRecorder()
+		apiHandler(root).ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/library/0123456789abcdef0123456789abcdef/artwork", nil))
+		if missing.Code != http.StatusNotFound {
+			t.Fatalf("unknown artwork status = %d", missing.Code)
 		}
 	})
 }

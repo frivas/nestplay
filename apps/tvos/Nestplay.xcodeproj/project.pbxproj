@@ -14,6 +14,7 @@
 		65AD17F8711969BD71A56B0A /* HealthClient in Frameworks */ = {isa = PBXBuildFile; productRef = 80B0336749ECD62CACC04E64 /* HealthClient */; };
 		663FAF1A50868FA3CE87AD94 /* PocServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C7D60394E35DF7E68F6E65 /* PocServer.swift */; };
 		BD848D238CBB9A67C1366B16 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AB342A0FFCC77598C139374 /* Assets.xcassets */; };
+		E45023826A12E60A82416A59 /* LocalLibraryShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841CAC749FBC9E626786B081 /* LocalLibraryShelf.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +34,7 @@
 		508382C455287E25970D8A47 /* HealthClient */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HealthClient; path = ../../packages/HealthClient; sourceTree = SOURCE_ROOT; };
 		52FDCACAF31F75163BC0C8FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B8A556C6650FE43A496E242 /* NestplayUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NestplayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		841CAC749FBC9E626786B081 /* LocalLibraryShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLibraryShelf.swift; sourceTree = "<group>"; };
 		859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		B8C7D60394E35DF7E68F6E65 /* PocServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocServer.swift; sourceTree = "<group>"; };
 		D0A6836EB2B45D68F5016FE7 /* Nestplay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Nestplay.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -57,6 +59,7 @@
 				2AB342A0FFCC77598C139374 /* Assets.xcassets */,
 				859CF497AB4E9E6AB63FF671 /* ConnectionView.swift */,
 				52FDCACAF31F75163BC0C8FA /* Info.plist */,
+				841CAC749FBC9E626786B081 /* LocalLibraryShelf.swift */,
 				2D7DE5A9488AE9AD607E7AB8 /* NestplayApp.swift */,
 				B8C7D60394E35DF7E68F6E65 /* PocServer.swift */,
 				E3EEE442F65840098EADF600 /* YouTubeHomeView.swift */,
@@ -198,6 +201,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				42EB6D819345EBFACC1423C3 /* ConnectionView.swift in Sources */,
+				E45023826A12E60A82416A59 /* LocalLibraryShelf.swift in Sources */,
 				4616B88A6342931669D48188 /* NestplayApp.swift in Sources */,
 				663FAF1A50868FA3CE87AD94 /* PocServer.swift in Sources */,
 				4A71593C172AE50B8ED582CE /* YouTubeHomeView.swift in Sources */,

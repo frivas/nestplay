@@ -45,7 +45,7 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 
 `POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac.
 
-`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename" } ] }`. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`. Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog, not a claim that YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
+`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename", "artwork" } ] }`. `artwork` is a Nestplay path such as `/library/{id}/artwork`, never a filesystem path. `GET /library/{id}/artwork` returns a 16:9 JPEG still from the watched-folder file, or a designed placeholder if a still cannot be taken. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`. Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog with posters, not a claim that YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 

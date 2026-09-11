@@ -88,10 +88,13 @@ private struct OfflineTransport: HealthTransport {
 
 @Test func loadsLibraryFromEndpoint() async throws {
   let transport = StubTransport(
-    body: "{\"items\":[{\"id\":\"abc\",\"title\":\"Heat\",\"filename\":\"Heat.mkv\"}]}")
+    body:
+      "{\"items\":[{\"id\":\"abc\",\"title\":\"Heat\",\"filename\":\"Heat.mkv\",\"artwork\":\"/library/abc/artwork\"}]}"
+  )
   let library = try await HealthClient(transport: transport).library(address: "http://mac.local")
   #expect(library.items.count == 1)
   #expect(library.items[0].title == "Heat")
+  #expect(library.items[0].artwork == "/library/abc/artwork")
   let request = await transport.request
   #expect(request?.url?.absoluteString == "http://mac.local/library")
   #expect(request?.httpMethod == "GET")

@@ -3,6 +3,7 @@ package catalog
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +17,9 @@ var videoExt = map[string]struct{}{
 	".mp4": {}, ".mkv": {}, ".m4v": {}, ".mov": {}, ".avi": {}, ".webm": {},
 }
 
+// ErrNotFound means no watched-folder file owns that Nestplay id.
+var ErrNotFound = errors.New("catalog item not found")
+
 // Item is a Nestplay-owned catalog record. It is not a TMDB or filesystem
 // schema: the Apple TV only sees these fields.
 type Item struct {
@@ -24,12 +28,32 @@ type Item struct {
 	Filename string `json:"filename"`
 }
 
+// File is a Mac-side catalog record. Path must never be encoded on the wire.
+type File struct {
+	Item Item
+	Path string
+}
+
 // List walks a watched folder. An empty or missing root is a valid empty
 // catalog so the health check can stay up before the user adds movies.
 func List(root string) ([]Item, error) {
+	files, err := Files(root)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]Item, len(files))
+	for i, file := range files {
+		items[i] = file.Item
+	}
+	return items, nil
+}
+
+// Files returns catalog items with absolute Mac paths. Callers must not
+// put Path on the wire.
+func Files(root string) ([]File, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
-		return []Item{}, nil
+		return []File{}, nil
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -37,16 +61,16 @@ func List(root string) ([]Item, error) {
 	}
 	info, err := os.Stat(abs)
 	if os.IsNotExist(err) {
-		return []Item{}, nil
+		return []File{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	if !info.IsDir() {
-		return []Item{}, nil
+		return []File{}, nil
 	}
 
-	var items []Item
+	var files []File
 	err = filepath.WalkDir(abs, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -78,23 +102,40 @@ func List(root string) ([]Item, error) {
 			return nil
 		}
 		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
-		items = append(items, Item{
-			ID:       stableID(rel),
-			Title:    title,
-			Filename: d.Name(),
+		files = append(files, File{
+			Item: Item{
+				ID:       stableID(rel),
+				Title:    title,
+				Filename: d.Name(),
+			},
+			Path: path,
 		})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Title == items[j].Title {
-			return items[i].Filename < items[j].Filename
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].Item.Title == files[j].Item.Title {
+			return files[i].Item.Filename < files[j].Item.Filename
 		}
-		return items[i].Title < items[j].Title
+		return files[i].Item.Title < files[j].Item.Title
 	})
-	return items, nil
+	return files, nil
+}
+
+// FileForID returns the Mac file that owns a Nestplay id.
+func FileForID(root, id string) (File, error) {
+	files, err := Files(root)
+	if err != nil {
+		return File{}, err
+	}
+	for _, file := range files {
+		if file.Item.ID == id {
+			return file, nil
+		}
+	}
+	return File{}, ErrNotFound
 }
 
 func depth(rel string) int {
