@@ -50,7 +50,9 @@ Other paths return 404 and unsupported methods return 405. This is a liveness ch
 - `server/`: Go executable, configuration example and HTTP contract tests.
 - `HealthClient/`: small Swift package used by the app and a command-line integration probe.
 - `tvos/`: SwiftUI app, checked-in Xcode project and two UI checks.
-- `../wayfinder/`: exported architecture map and research reports. Canonical trackers are in the workspace's `.scratch/nestplay/` and `.scratch/nestplay-health/` directories.
+- `.scratch/nestplay/` and `.scratch/nestplay-health/`: canonical local Wayfinder maps and tickets.
+- `docs/research/`: architecture and component research.
+- `docs/wayfinder-export/`: preserved review snapshot from before repository consolidation.
 
 Perch, Jellyfin and YouTube packages are not dependencies of this first milestone.
 

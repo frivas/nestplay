@@ -8,7 +8,7 @@ The first executable milestone exists and passes its automated checks. A small G
 
 The full PoC has not been built. YouTube, media indexing, playback, Jellyfin, metadata, subtitles and storage supervision are deliberate later increments.
 
-Source: this directory. Canonical architecture tracker: `../../.scratch/nestplay/map.md`. Canonical health milestone tracker: `../../.scratch/nestplay-health/map.md`. Exported research and map snapshot: `../wayfinder/`.
+Source: this directory. Canonical architecture tracker: `.scratch/nestplay/map.md`. Canonical health milestone tracker: `.scratch/nestplay-health/map.md`. Research is in `docs/research/`; the earlier review snapshot is preserved in `docs/wayfinder-export/`.
 
 ## Product destination and accepted requirements
 
@@ -35,7 +35,7 @@ Target hardware observed: server candidate is an M1 Pro MacBook Pro with 16 GB R
 
 Always use the named Wayfinder skill and local Markdown tracker. Refer to tickets by linked name in user-facing text, not bare numbers. Claim a ticket before work. Resolve it with an `## Answer`, set `Status: resolved`, and append only a one-line pointer to its map. Never resolve more than one non-research ticket in a session.
 
-The health milestone map, `../../.scratch/nestplay-health/map.md`, has one resolved ticket:
+The health milestone map, `.scratch/nestplay-health/map.md`, has one resolved ticket:
 
 - **Build and validate the first LAN health check** is resolved at simulator level. Its answer records exact evidence.
 
@@ -43,7 +43,7 @@ Its frontier is:
 
 - **Accept the health check on the Apple TV HD**. Install a signed build on the physical A1625 and run the five checks in `VALIDATION.md`. This is the recommended immediate next task. Do not mark it resolved from simulator evidence.
 
-The parent architecture map, `../../.scratch/nestplay/map.md`, has three resolved research decisions:
+The parent architecture map, `.scratch/nestplay/map.md`, has three resolved research decisions:
 
 - **Establish personalized YouTube access and session lifecycle** selects a replaceable YouTube.js adapter plus yt-dlp, with live account proof remaining.
 - **Select original-language metadata and Spanish subtitle sources** selects TMDB, OpenSubtitles.com and existing YouTube captions, with provider/account and file validation remaining.
@@ -54,7 +54,7 @@ The parent map's open frontier is:
 - **Accept the PoC YouTube connection experience**. The user already accepted local YouTube session import in conversation. A future session should claim this ticket, record that accepted answer, resolve only this ticket, and update the map. Do not request the decision again.
 - **Prepare metadata and subtitle provider access**. This remains open and requires user-mediated TMDB/OpenSubtitles setup with secrets stored locally. Never ask the user to paste credentials into chat.
 
-Blocked behind those are **Validate account access and playback on the target devices**, then **Confirm the Nestplay PoC stack and packaging tradeoffs**. The validation ticket also depends on playback research, which is resolved, and physical-device fixtures. The exported `../wayfinder/validation-plan.md` describes bounded proofs.
+Blocked behind those are **Validate account access and playback on the target devices**, then **Confirm the Nestplay PoC stack and packaging tradeoffs**. The validation ticket also depends on playback research, which is resolved, and physical-device fixtures. `docs/research/validation-plan.md` describes bounded proofs.
 
 Do not convert the entire destination into implementation tickets now. Wayfinder keeps later work in fog until the next decision makes it precise. For execution milestones, add an explicit execution exception to the map Notes, as done for the health milestone.
 
@@ -70,7 +70,7 @@ The research-supported candidate is:
 6. Native Jellyfin is initially behind a Nestplay playback adapter for direct play/remux/transcode. Nestplay's public model must not expose Jellyfin item schemas so another backend can be added later.
 7. The Apple TV app uses SwiftUI and AVPlayerViewController for native controls and subtitle/audio menus.
 
-Detailed evidence is in `../wayfinder/architecture-findings.md`, `youtube-session.md`, `metadata-subtitles.md` and `playback-packaging.md`.
+Detailed evidence is in `docs/research/architecture-findings.md`, `youtube-session.md`, `metadata-subtitles.md` and `playback-packaging.md`.
 
 ## Implemented source
 
@@ -153,4 +153,4 @@ My recommendation is to keep each milestone vertically testable through the TV: 
 
 This directory was created as a standalone local Git repository on branch `develop` after validation. There is no remote and nothing has been pushed. The initial commit should contain source, generated Xcode project, tests, validation, Wayfinder-aware instructions and this handoff. If the tree is not clean, inspect every change before continuing; never discard user work.
 
-The downloadable server binary is ignored by Git and exists only as a convenience in this output. Source is authoritative. Build products and Xcode user data remain ignored.
+The Apple Silicon development server binary is committed in `bin/` so this handoff can run immediately. Source remains authoritative. Swift/Xcode build products and Xcode user data remain ignored.
