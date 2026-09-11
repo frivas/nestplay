@@ -42,21 +42,21 @@ struct YouTubeHomeView: View {
               RemotePoster(title: item.title, artwork: item.artwork, server: server)
             }
           }
-          .padding(.bottom, 40)
+          .padding(NestEgg.focusGutter)
           if let cursor = page.cursor, !cursor.isEmpty {
             Button(searching ? "More results" : "More recommendations") {
               Task { await loadMore() }
             }
+            .buttonStyle(.borderless)
             .tint(NestEgg.gold)
             .padding(.bottom, 80)
           }
         }
+        .scrollClipDisabled()
         .accessibilityIdentifier("youtubeHomeCatalog")
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .padding(.horizontal, 12)
-    .padding(.top, 8)
     .accessibilityIdentifier("youtubeHomeSurface")
     .task { await refresh() }
   }
@@ -73,14 +73,17 @@ struct YouTubeHomeView: View {
           query = ""
           Task { await refresh() }
         }
+        .buttonStyle(.borderless)
         .tint(NestEgg.gold)
       } else {
         Button("Refresh") { Task { await refresh() } }
           .disabled(loading)
+          .buttonStyle(.borderless)
           .tint(NestEgg.gold)
           .accessibilityIdentifier("youtubeHomeRefresh")
         Button("Search") { searching = true }
           .disabled(page.state == "reconnect_required")
+          .buttonStyle(.borderless)
           .tint(NestEgg.gold)
           .accessibilityIdentifier("youtubeHomeSearch")
       }
@@ -96,6 +99,7 @@ struct YouTubeHomeView: View {
         .accessibilityIdentifier("youtubeSearchField")
       Button("Find") { Task { await search() } }
         .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || loading)
+        .buttonStyle(.borderless)
         .tint(NestEgg.gold)
         .accessibilityIdentifier("youtubeSearchSubmit")
     }

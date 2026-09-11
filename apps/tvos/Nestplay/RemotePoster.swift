@@ -5,6 +5,8 @@ enum NestEgg {
   static let cream = Color(red: 0.965, green: 0.933, blue: 0.847)
   static let gold = Color(red: 0.910, green: 0.784, blue: 0.353)
   static let teal = Color(red: 0.106, green: 0.255, blue: 0.282)
+  static let chrome: CGFloat = 88
+  static let focusGutter: CGFloat = 56
 }
 
 struct RemotePoster: View {
@@ -27,7 +29,7 @@ struct RemotePoster: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
-    .buttonStyle(.card)
+    .buttonStyle(.borderless)
     .tint(NestEgg.gold)
     .accessibilityLabel(title)
   }
@@ -71,5 +73,33 @@ struct RemotePoster: View {
     let base = server.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     let path = artwork.hasPrefix("/") ? artwork : "/" + artwork
     return URL(string: base + path)
+  }
+}
+
+struct PosterGrid<Item: Identifiable>: View {
+  let items: [Item]
+  let server: String
+  let catalogID: String
+  let title: (Item) -> String
+  let artwork: (Item) -> String
+
+  private let columns = [
+    GridItem(.flexible(), spacing: 36),
+    GridItem(.flexible(), spacing: 36),
+    GridItem(.flexible(), spacing: 36),
+    GridItem(.flexible(), spacing: 36),
+  ]
+
+  var body: some View {
+    ScrollView {
+      LazyVGrid(columns: columns, spacing: 44) {
+        ForEach(items) { item in
+          RemotePoster(title: title(item), artwork: artwork(item), server: server)
+        }
+      }
+      .padding(NestEgg.focusGutter)
+    }
+    .scrollClipDisabled()
+    .accessibilityIdentifier(catalogID)
   }
 }

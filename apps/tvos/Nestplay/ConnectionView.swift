@@ -33,13 +33,14 @@ struct ConnectionView: View {
 
   var body: some View {
     ZStack {
-      Color(red: 0.055, green: 0.07, blue: 0.09).ignoresSafeArea()
+      NestEgg.stage.ignoresSafeArea()
       if case .connected = state {
         connectedShell
       } else {
         setupShell
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .preferredColorScheme(.dark)
     .task {
       if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "--server-url"),
@@ -80,41 +81,50 @@ struct ConnectionView: View {
   }
 
   private var connectedShell: some View {
-    TabView(selection: $surface) {
-      localLibraryTab
-        .tabItem {
-          Text("Local library")
+    VStack(alignment: .leading, spacing: 20) {
+      switcher
+      Group {
+        if surface == .localLibrary {
+          localLibraryTab
+        } else {
+          YouTubeHomeView(server: address)
         }
-        .tag(Surface.localLibrary)
-        .accessibilityIdentifier("localLibraryTab")
-      YouTubeHomeView(server: address)
-        .tabItem {
-          Text("YouTube Home")
-        }
-        .tag(Surface.youtubeHome)
-        .accessibilityIdentifier("youtubeHomeTab")
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+    .padding(.horizontal, NestEgg.chrome)
+    .padding(.top, 28)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var switcher: some View {
+    HStack(alignment: .center, spacing: 32) {
+      Text("NESTPLAY")
+        .font(.system(size: 22, weight: .semibold))
+        .tracking(6)
+        .foregroundStyle(NestEgg.cream.opacity(0.72))
+      surfaceButton("Local library", .localLibrary, "localLibraryTab")
+      surfaceButton("YouTube Home", .youtubeHome, "youtubeHomeTab")
+      Spacer()
+      Text(state.title)
+        .font(.headline)
+        .foregroundStyle(NestEgg.cream.opacity(0.8))
+        .accessibilityIdentifier("connectionStatus")
     }
   }
 
+  private func surfaceButton(_ title: String, _ value: Surface, _ id: String) -> some View {
+    Button(title) { surface = value }
+      .buttonStyle(.borderless)
+      .font(.title3.weight(surface == value ? .semibold : .regular))
+      .foregroundStyle(surface == value ? NestEgg.gold : NestEgg.cream.opacity(0.72))
+      .accessibilityIdentifier(id)
+      .accessibilityAddTraits(surface == value ? .isSelected : [])
+  }
+
   private var localLibraryTab: some View {
-    VStack(alignment: .leading, spacing: 24) {
-      HStack(alignment: .center, spacing: 24) {
-        Text("NESTPLAY")
-          .font(.system(size: 22, weight: .semibold))
-          .tracking(6)
-          .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.72))
-        Spacer()
-        Text(state.title)
-          .font(.headline)
-          .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.8))
-          .accessibilityIdentifier("connectionStatus")
-      }
-      LocalLibraryShelf(items: catalog, server: address, emptyMessage: catalogMessage)
-    }
-    .padding(.horizontal, 72)
-    .padding(.top, 36)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .accessibilityIdentifier("localLibrarySurface")
+    LocalLibraryShelf(items: catalog, server: address, emptyMessage: catalogMessage)
+      .accessibilityIdentifier("localLibrarySurface")
   }
 
   private var connectionControls: some View {

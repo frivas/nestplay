@@ -6,13 +6,6 @@ struct LocalLibraryShelf: View {
   let server: String
   let emptyMessage: String
 
-  private let columns = [
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-  ]
-
   var body: some View {
     VStack(alignment: .leading, spacing: 28) {
       Text("Local library")
@@ -25,15 +18,13 @@ struct LocalLibraryShelf: View {
           .accessibilityIdentifier("libraryEmpty")
       }
       if !items.isEmpty {
-        ScrollView {
-          LazyVGrid(columns: columns, spacing: 44) {
-            ForEach(items) { item in
-              RemotePoster(title: item.title, artwork: item.artwork, server: server)
-            }
-          }
-          .padding(.bottom, 80)
-        }
-        .accessibilityIdentifier("libraryCatalog")
+        PosterGrid(
+          items: items,
+          server: server,
+          catalogID: "libraryCatalog",
+          title: { $0.title },
+          artwork: { $0.artwork }
+        )
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
