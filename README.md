@@ -58,11 +58,11 @@ Perch, Jellyfin and YouTube packages are not dependencies of this first mileston
 ## Developer checks
 
 ```sh
-make test
+make check
 make server
 ```
 
-GitHub runs path-scoped server and tvOS workflows. See [continuous integration](docs/ci.md) for triggers, pinned tools, and security checks.
+`make check` is the local first pass (format, tests, static analysis, and builds). GitHub CI is a path-scoped second pass on pushes to `develop`. See [continuous integration](docs/ci.md).
 
 To regenerate the Xcode project after changing `apps/tvos/project.yml`, run `make project` with XcodeGen installed. Regeneration is not required to open the checked-in project.
 

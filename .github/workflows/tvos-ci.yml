@@ -1,12 +1,6 @@
 name: tvOS CI
 
 on:
-  pull_request:
-    paths:
-      - "apps/tvos/**"
-      - "packages/HealthClient/**"
-      - "Makefile"
-      - ".github/workflows/tvos-ci.yml"
   push:
     branches: [develop]
     paths:
