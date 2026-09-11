@@ -7,9 +7,9 @@ alwaysApply: true
 
 All commits must be signed. Use `git commit -S`. Never `--no-gpg-sign` or `--no-verify`. Do not change git config; if signing fails, stop and report it.
 
-After a feature branch's CI is green (red tests fail the job; green tests plus the rest of CI succeed) and that work is merged, delete the branch. Remove both `origin/<branch>` and the local branch. Squash-merged branches are not fast-forward ancestors of `develop`; delete them anyway. Do not leave merged CI or feature branches in the repository.
+After a feature branch's local `make check` is green and that work is merged, delete the branch. Remove both `origin/<branch>` and the local branch. Squash-merged branches are not fast-forward ancestors of `develop`; delete them anyway. Do not leave merged CI or feature branches in the repository.
 
-Do not delete `develop` or a branch whose PR is still open or whose CI has not succeeded.
+Do not delete `develop` or a branch whose PR is still open.
 
 ## Issue-scoped, complete commit messages
 

@@ -62,7 +62,7 @@ make check
 make server
 ```
 
-`make check` is the local first pass (format, tests, static analysis, and builds). GitHub CI is a path-scoped second pass on pushes to `develop`. See [continuous integration](docs/ci.md).
+`make check` is the required verification (format, tests, static analysis, and builds). GitHub-hosted Actions do not run on push. See [continuous integration](docs/ci.md).
 
 To regenerate the Xcode project after changing `apps/tvos/project.yml`, run `make project` with XcodeGen installed. Regeneration is not required to open the checked-in project.
 

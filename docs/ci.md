@@ -1,8 +1,8 @@
 # Continuous integration
 
-Run `make check` locally first. GitHub CI is a path-scoped second pass on `develop`, not a pull-request gate. Documentation-only, Makefile-only, and workflow-file-only commits do not start the workflow. Use workflow dispatch when you want an explicit recheck of both jobs on `develop`, including after editing the workflow itself.
+Run `make check` locally. That is the required gate. GitHub-hosted Actions do not run on push: macOS tvOS jobs bill at 10× and exhausted this private account's included minutes. The `CI` workflow is disabled and only accepts manual `workflow_dispatch` until the allowance resets on 1 October 2026.
 
-## Local first pass
+## Local verification
 
 From the repository root:
 
@@ -10,17 +10,19 @@ From the repository root:
 make check
 ```
 
-That runs the same server and tvOS checks GitHub runs, using Go 1.26.6, Staticcheck 2026.1, govulncheck 1.8.0, and gosec 2.29.0. `make test` remains a faster unit-test subset.
+That runs format, tests, static analysis, and builds for the Go server and tvOS app, using Go 1.26.6, Staticcheck 2026.1, govulncheck 1.8.0, and gosec 2.29.0. `make test` remains a faster unit-test subset.
+
+Simulator UI tests (needs the server on port 8765):
+
+```sh
+xcodebuild test -project apps/tvos/Nestplay.xcodeproj -scheme Nestplay -destination 'platform=tvOS Simulator,name=Apple TV'
+```
 
 ## GitHub workflow
 
-One workflow, `CI`, runs when a push to `develop` changes `server/**`, `apps/tvos/**`, or `packages/HealthClient/**`. A cheap selector job compares the push to the previous `develop` tip and starts only the matching verify job:
+`.github/workflows/ci.yml` is `workflow_dispatch` only. Do not re-enable it for `push` while included minutes are scarce. A macOS job of about 20 minutes consumes about 200 of the 2,000 included minutes.
 
-- Server files start **Verify Go server** on Ubuntu.
-- tvOS or HealthClient files start **Verify tvOS app** on macOS.
-- An identical-tree force-push (metadata-only rewrite) starts the selector and skips both verify jobs.
-
-The shared `Makefile` and the workflow file are not triggers. Change them locally, run `make check`, and use workflow dispatch if GitHub should recheck `develop`.
+If you explicitly re-enable the workflow and run it by hand, it still has two jobs:
 
 ### Verify Go server
 
