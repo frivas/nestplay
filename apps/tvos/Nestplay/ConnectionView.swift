@@ -104,9 +104,6 @@ struct ConnectionView: View {
           .tracking(6)
           .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.72))
         Spacer()
-        Button(checking ? "Checking…" : "Check connection") { check() }
-          .disabled(checking)
-          .accessibilityIdentifier("checkConnection")
         Text(state.title)
           .font(.headline)
           .foregroundStyle(Color(red: 0.965, green: 0.933, blue: 0.847).opacity(0.8))

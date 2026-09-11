@@ -24,6 +24,7 @@ final class ConnectionTests: XCTestCase {
     app.launchArguments = ["--server-url", "http://127.0.0.1:8765"]
     app.launch()
     XCTAssertTrue(app.staticTexts["Connected to Nestplay"].waitForExistence(timeout: 15))
+    XCTAssertFalse(app.buttons["checkConnection"].exists)
     XCTAssertTrue(app.otherElements["localLibrarySurface"].waitForExistence(timeout: 5))
     XCTAssertTrue(
       app.otherElements["libraryCatalog"].exists || app.staticTexts["libraryEmpty"].exists)

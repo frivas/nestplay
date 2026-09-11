@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -50,12 +51,13 @@ func extract(src, dest string) error {
 	if err != nil {
 		return err
 	}
+	ss := strconv.FormatFloat(seekSeconds(durationSeconds(src)), 'f', 3, 64)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	// src and dest are catalog/cache paths owned by Nestplay, never request input.
 	cmd := exec.CommandContext(ctx, ffmpeg, // #nosec G204
 		"-hide_banner", "-loglevel", "error", "-nostdin",
-		"-ss", "8",
+		"-ss", ss,
 		"-i", src,
 		"-frames:v", "1",
 		"-vf", "scale=640:360:force_original_aspect_ratio=increase,crop=640:360",
@@ -71,6 +73,50 @@ func extract(src, dest string) error {
 	return nil
 }
 
+func durationSeconds(src string) float64 {
+	ffprobe, err := exec.LookPath("ffprobe")
+	if err != nil {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffprobe, // #nosec G204
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		src,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	seconds, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil {
+		return 0
+	}
+	return seconds
+}
+
+func seekSeconds(duration float64) float64 {
+	if duration <= 0 {
+		return 45
+	}
+	if duration < 50 {
+		return duration * 0.35
+	}
+	seconds := duration * 0.18
+	if seconds < 45 {
+		seconds = 45
+	}
+	if seconds > 180 {
+		seconds = 180
+	}
+	if seconds > duration-1 {
+		return duration * 0.4
+	}
+	return seconds
+}
+
 func cacheFile(id string, mod time.Time) (string, error) {
 	root, err := cacheRoot()
 	if err != nil {
@@ -79,7 +125,7 @@ func cacheFile(id string, mod time.Time) (string, error) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return "", err
 	}
-	name := id + "-" + strconv.FormatInt(mod.Unix(), 10) + ".jpg"
+	name := id + "-" + strconv.FormatInt(mod.Unix(), 10) + "-v3.jpg"
 	return filepath.Join(root, name), nil
 }
 
