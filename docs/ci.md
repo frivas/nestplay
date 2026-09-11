@@ -31,7 +31,7 @@ Changes to the shared `Makefile` intentionally run both workflows because it con
 
 ## Security and dependency maintenance
 
-Actions are pinned to immutable commit SHAs. Dependabot checks GitHub Actions and the Go module once a month. The workflows use read-only repository access plus `security-events: write`, which CodeQL needs to publish findings.
+Actions are pinned to immutable commit SHAs. Dependabot checks GitHub Actions and the Go module once a month. The workflows grant `contents: read`, `actions: read`, and `security-events: write`. CodeQL needs the extra `actions: read` scope on this private repository so analyze can read the workflow run before uploading SARIF.
 
 ## Local checks
 
