@@ -1,14 +1,21 @@
-.PHONY: server run test project
+.PHONY: server run test project clean
+
+BUILD_DIR := .build/bin
+SERVER_BINARY := $(BUILD_DIR)/nestplay-server
 
 server:
-	cd server && go build -o ../bin/nestplay-server .
+	mkdir -p $(BUILD_DIR)
+	cd server && go build -o ../$(SERVER_BINARY) .
 
 run: server
-	./bin/nestplay-server
+	./$(SERVER_BINARY)
 
 test:
 	cd server && go test ./...
-	cd HealthClient && swift test
+	cd packages/HealthClient && swift test
 
 project:
-	cd tvos && xcodegen generate
+	cd apps/tvos && xcodegen generate
+
+clean:
+	rm -rf .build packages/HealthClient/.build apps/tvos/DerivedData
