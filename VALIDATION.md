@@ -38,3 +38,5 @@ Start the server and install the app by following README.md. Use `http://aquinas
 5. Record any firewall prompt, timing or remote-control usability issue in the open Wayfinder ticket.
 
 Passing those steps resolves physical-device acceptance. Simulator evidence must not be presented as a substitute.
+
+At handoff time, Xcode listed only generic tvOS destinations and simulators. The physical A1625 was not paired or visible to this Mac's Xcode session.

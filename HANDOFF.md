@@ -117,7 +117,7 @@ The user's global instruction requires prefixing shell commands with `rtk`; use 
 
 ## Physical-device continuation
 
-The Mac local hostname observed was `aquinas`; try `http://aquinas.local:8765`. Start the server without the localhost-only test override so it binds to the LAN. Pair the Apple TV in Xcode, choose the user's development team, change the bundle identifier only if Xcode requires it, install, and accept local-network permission. Never commit team IDs, provisioning profiles or credentials.
+The Mac local hostname observed was `aquinas`; try `http://aquinas.local:8765`. Start the server without the localhost-only test override so it binds to the LAN. At handoff, Xcode listed only simulators and generic tvOS destinations; the physical A1625 was not paired or visible. Pair the Apple TV in Xcode, choose the user's development team, change the bundle identifier only if Xcode requires it, install, and accept local-network permission. Never commit team IDs, provisioning profiles or credentials.
 
 Run the five acceptance checks in `VALIDATION.md`: connect; stop server and see failure; restart and recover; restart app and retain address; record firewall/focus/timing issues. If `.local` fails, find the active LAN address locally. Do not add automatic discovery until this manual path has been observed.
 
