@@ -34,14 +34,11 @@ func apiHandler() http.Handler {
 		}{"nestplay", "ok", 1})
 	})
 	mux.HandleFunc("POST /debug/log", debugLogHandler)
-	return withRequestLog(mux)
+	return mux
 }
 
-func withRequestLog(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s from %s", r.Method, r.URL.RequestURI(), r.RemoteAddr)
-		next.ServeHTTP(w, r)
-	})
+func sanitizeLog(s string) string {
+	return strings.NewReplacer("\n", "", "\r", "", "\x00", "").Replace(s)
 }
 
 func debugLogHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +63,12 @@ func debugLogHandler(w http.ResponseWriter, r *http.Request) {
 	if event.Level == "" {
 		event.Level = "debug"
 	}
-	log.Printf("%s %s %s", event.Source, event.Level, event.Message)
+	log.Printf(
+		"%s %s %s",
+		sanitizeLog(event.Source),
+		sanitizeLog(event.Level),
+		sanitizeLog(event.Message),
+	)
 	w.WriteHeader(http.StatusNoContent)
 }
 

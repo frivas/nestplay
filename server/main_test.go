@@ -53,6 +53,13 @@ func TestUnsupportedRoutes(t *testing.T) {
 	}
 }
 
+func TestSanitizeLogStripsLineBreaks(t *testing.T) {
+	got := sanitizeLog("ok\r\ninjected\x00")
+	if got != "okinjected" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestDebugLogAcceptsJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/debug/log", strings.NewReader(
