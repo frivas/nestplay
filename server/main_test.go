@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"nestplay.local/server/internal/youtube"
 )
 
 func TestHealthContract(t *testing.T) {
@@ -45,6 +47,7 @@ func TestUnsupportedRoutes(t *testing.T) {
 		{http.MethodGet, "/library/extra", http.StatusNotFound},
 		{http.MethodPost, "/library", http.StatusMethodNotAllowed},
 		{http.MethodPost, "/health", http.StatusMethodNotAllowed},
+		{http.MethodPost, "/youtube/home", http.StatusMethodNotAllowed},
 		{http.MethodGet, "/debug/log", http.StatusMethodNotAllowed},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
@@ -169,6 +172,79 @@ func TestLibraryJSON(t *testing.T) {
 		apiHandler(root).ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/library/0123456789abcdef0123456789abcdef/artwork", nil))
 		if missing.Code != http.StatusNotFound {
 			t.Fatalf("unknown artwork status = %d", missing.Code)
+		}
+	})
+}
+
+func TestYouTubeJSON(t *testing.T) {
+	t.Run("reconnect without cookies", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		apiHandler("").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/youtube/status", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		if w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("youtube must not be cached")
+		}
+		var body struct {
+			State   string `json:"state"`
+			Message string `json:"message"`
+			Items   []any  `json:"items"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.State != "reconnect_required" || len(body.Items) != 0 || body.Message == "" {
+			t.Fatalf("got %+v", body)
+		}
+	})
+	t.Run("home continuation and search", func(t *testing.T) {
+		fake := &youtube.Fake{
+			Pages: map[string]youtube.Page{
+				"status": {State: youtube.Connected},
+				"home:": {
+					State:  youtube.Connected,
+					Items:  []youtube.Item{{ID: "abcdefghijk", Title: "Heat"}},
+					Cursor: "next",
+				},
+				"home:next": {
+					State: youtube.Connected,
+					Items: []youtube.Item{{ID: "lmnopqrstuv", Title: "More"}},
+				},
+				"search:heat:": {
+					State: youtube.Connected,
+					Items: []youtube.Item{{ID: "abcdefghijk", Title: "Heat"}},
+				},
+			},
+		}
+		h := nestplayHandler("", fake)
+		home := httptest.NewRecorder()
+		h.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/youtube/home", nil))
+		var first struct {
+			State  string        `json:"state"`
+			Items  []youtubeItem `json:"items"`
+			Cursor string        `json:"cursor"`
+		}
+		if err := json.Unmarshal(home.Body.Bytes(), &first); err != nil {
+			t.Fatal(err)
+		}
+		if first.State != "connected" || len(first.Items) != 1 || first.Items[0].Artwork != "/youtube/abcdefghijk/artwork" || first.Cursor != "next" {
+			t.Fatalf("home %+v", first)
+		}
+		more := httptest.NewRecorder()
+		h.ServeHTTP(more, httptest.NewRequest(http.MethodGet, "/youtube/home?cursor=next", nil))
+		if !strings.Contains(more.Body.String(), "lmnopqrstuv") {
+			t.Fatalf("continuation %s", more.Body.String())
+		}
+		search := httptest.NewRecorder()
+		h.ServeHTTP(search, httptest.NewRequest(http.MethodGet, "/youtube/search?q=heat", nil))
+		if !strings.Contains(search.Body.String(), "abcdefghijk") {
+			t.Fatalf("search %s", search.Body.String())
+		}
+		missing := httptest.NewRecorder()
+		h.ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/youtube/nope/artwork", nil))
+		if missing.Code != http.StatusNotFound {
+			t.Fatalf("artwork status = %d", missing.Code)
 		}
 	})
 }

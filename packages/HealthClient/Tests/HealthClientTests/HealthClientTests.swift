@@ -99,3 +99,38 @@ private struct OfflineTransport: HealthTransport {
   #expect(request?.url?.absoluteString == "http://mac.local/library")
   #expect(request?.httpMethod == "GET")
 }
+
+@Test func loadsYouTubeHomeFromEndpoint() async throws {
+  let transport = StubTransport(
+    body:
+      "{\"state\":\"connected\",\"items\":[{\"id\":\"abcdefghijk\",\"title\":\"Heat\",\"artwork\":\"/youtube/abcdefghijk/artwork\"}],\"cursor\":\"next\"}"
+  )
+  let page = try await HealthClient(transport: transport).youtubeHome(address: "http://mac.local")
+  #expect(page.state == "connected")
+  #expect(page.items.count == 1)
+  #expect(page.items[0].title == "Heat")
+  #expect(page.cursor == "next")
+  let request = await transport.request
+  #expect(request?.url?.absoluteString == "http://mac.local/youtube/home")
+}
+
+@Test func searchesYouTubeWithQuery() async throws {
+  let transport = StubTransport(
+    body: "{\"state\":\"connected\",\"items\":[],\"cursor\":\"\"}"
+  )
+  _ = try await HealthClient(transport: transport).youtubeSearch(
+    address: "http://mac.local", query: "heat")
+  let request = await transport.request
+  #expect(request?.url?.path == "/youtube/search")
+  #expect(request?.url?.query?.contains("q=heat") == true)
+}
+
+@Test func reconnectsYouTubeWithoutInventingHome() async throws {
+  let transport = StubTransport(
+    body:
+      "{\"state\":\"reconnect_required\",\"message\":\"YouTube needs a reconnect on your Mac.\",\"items\":[]}"
+  )
+  let page = try await HealthClient(transport: transport).youtubeStatus(address: "http://mac.local")
+  #expect(page.state == "reconnect_required")
+  #expect(page.items.isEmpty)
+}

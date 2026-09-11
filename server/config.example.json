@@ -1,4 +1,5 @@
 {
   "listen": "0.0.0.0:8765",
-  "library_root": ""
+  "library_root": "",
+  "youtube_cookies": ""
 }

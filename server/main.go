@@ -18,16 +18,25 @@ import (
 
 	"nestplay.local/server/internal/artwork"
 	"nestplay.local/server/internal/catalog"
+	"nestplay.local/server/internal/youtube"
 )
 
 type config struct {
-	Listen      string `json:"listen"`
-	LibraryRoot string `json:"library_root"`
+	Listen         string `json:"listen"`
+	LibraryRoot    string `json:"library_root"`
+	YouTubeCookies string `json:"youtube_cookies"`
 }
 
 const maxDebugBody = 64 << 10
 
 func apiHandler(libraryRoot string) http.Handler {
+	return nestplayHandler(libraryRoot, youtube.Disabled())
+}
+
+func nestplayHandler(libraryRoot string, yt youtube.Adapter) http.Handler {
+	if yt == nil {
+		yt = youtube.Disabled()
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -40,6 +49,10 @@ func apiHandler(libraryRoot string) http.Handler {
 	})
 	mux.HandleFunc("GET /library", libraryHandler(libraryRoot))
 	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(libraryRoot))
+	mux.HandleFunc("GET /youtube/status", youtubeStatusHandler(yt))
+	mux.HandleFunc("GET /youtube/home", youtubeHomeHandler(yt))
+	mux.HandleFunc("GET /youtube/search", youtubeSearchHandler(yt))
+	mux.HandleFunc("GET /youtube/{id}/artwork", youtubeArtworkHandler)
 	mux.HandleFunc("POST /debug/log", debugLogHandler)
 	return mux
 }
@@ -49,6 +62,12 @@ type libraryItem struct {
 	Title    string `json:"title"`
 	Filename string `json:"filename"`
 	Artwork  string `json:"artwork"`
+}
+
+type youtubeItem struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Artwork string `json:"artwork"`
 }
 
 func libraryHandler(root string) http.HandlerFunc {
@@ -94,6 +113,81 @@ func artworkHandler(root string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 		http.ServeContent(w, r, id+".jpg", time.Time{}, bytes.NewReader(data))
 	}
+}
+
+func youtubeStatusHandler(yt youtube.Adapter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeYouTubePage(w, yt.Status(r.Context()))
+	}
+}
+
+func youtubeHomeHandler(yt youtube.Adapter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeYouTubePage(w, yt.Home(r.Context(), r.URL.Query().Get("cursor")))
+	}
+}
+
+func youtubeSearchHandler(yt youtube.Adapter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeYouTubePage(w, yt.Search(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get("cursor")))
+	}
+}
+
+func writeYouTubePage(w http.ResponseWriter, page youtube.Page) {
+	items := make([]youtubeItem, 0, len(page.Items))
+	for _, item := range page.Items {
+		if !youtube.VideoID(item.ID) {
+			continue
+		}
+		items = append(items, youtubeItem{
+			ID: item.ID, Title: item.Title,
+			Artwork: "/youtube/" + item.ID + "/artwork",
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(struct {
+		State   string        `json:"state"`
+		Message string        `json:"message,omitempty"`
+		Items   []youtubeItem `json:"items"`
+		Cursor  string        `json:"cursor,omitempty"`
+	}{string(page.State), page.Message, items, page.Cursor})
+}
+
+func youtubeArtworkHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !youtube.VideoID(id) {
+		http.NotFound(w, r)
+		return
+	}
+	data := youtubeThumbnail(id)
+	if !bytes.HasPrefix(data, []byte{0xFF, 0xD8}) {
+		data = artwork.Placeholder()
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	http.ServeContent(w, r, id+".jpg", time.Time{}, bytes.NewReader(data))
+}
+
+func youtubeThumbnail(id string) []byte {
+	client := &http.Client{Timeout: 6 * time.Second}
+	for _, name := range []string{"hq720.jpg", "maxresdefault.jpg", "hqdefault.jpg"} {
+		addr := "https://i.ytimg.com/vi/" + id + "/" + name
+		req, err := http.NewRequest(http.MethodGet, addr, nil) // #nosec G107,G704 -- id is a validated 11-character YouTube video id
+		if err != nil {
+			continue
+		}
+		resp, err := client.Do(req) // #nosec G704 -- host is i.ytimg.com; id is a validated YouTube video id
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusOK && bytes.HasPrefix(body, []byte{0xFF, 0xD8}) {
+			return body
+		}
+	}
+	return artwork.Placeholder()
 }
 
 func catalogID(id string) bool {
@@ -149,6 +243,7 @@ func main() {
 	configPath := flag.String("config", "", "optional JSON configuration file")
 	listen := flag.String("listen", "", "listen address; overrides configuration")
 	libraryRoot := flag.String("library-root", "", "watched folder; overrides configuration")
+	youtubeCookies := flag.String("youtube-cookies", "", "YouTube cookie file; overrides configuration")
 	flag.Parse()
 	cfg := config{Listen: "0.0.0.0:8765"}
 	if *configPath != "" {
@@ -166,24 +261,31 @@ func main() {
 	if *libraryRoot != "" {
 		cfg.LibraryRoot = *libraryRoot
 	}
+	if *youtubeCookies != "" {
+		cfg.YouTubeCookies = *youtubeCookies
+	}
+	if cfg.YouTubeCookies == "" {
+		cfg.YouTubeCookies = youtube.DefaultCookieFile()
+	}
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
 	}
 	server := &http.Server{
-		Addr: cfg.Listen, Handler: apiHandler(cfg.LibraryRoot),
-		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second,
+		Addr: cfg.Listen, Handler: nestplayHandler(cfg.LibraryRoot, youtube.New(cfg.YouTubeCookies)),
+		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 45 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/{id}/artwork\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
 	select {
 	case err := <-done:
-		if !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal(err)
+		if errors.Is(err, http.ErrServerClosed) {
+			return
 		}
+		log.Fatal(err)
 	case <-ctx.Done():
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

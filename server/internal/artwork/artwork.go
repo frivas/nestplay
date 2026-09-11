@@ -144,6 +144,10 @@ func jpegSOI(data []byte) bool {
 	return len(data) >= 2 && data[0] == 0xFF && data[1] == 0xD8
 }
 
+func Placeholder() []byte {
+	return placeholder()
+}
+
 func placeholder() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	top := color.RGBA{R: 0x1B, G: 0x41, B: 0x48, A: 0xFF}

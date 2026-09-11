@@ -33,8 +33,8 @@ public struct SessionTransport: HealthTransport {
   private let session: URLSession
   public init() {
     let config = URLSessionConfiguration.ephemeral
-    config.timeoutIntervalForRequest = 5
-    config.timeoutIntervalForResource = 8
+    config.timeoutIntervalForRequest = 20
+    config.timeoutIntervalForResource = 30
     config.urlCache = nil
     config.waitsForConnectivity = false
     session = URLSession(configuration: config)
@@ -90,6 +90,46 @@ public struct HealthClient: Sendable {
     }
     return library
   }
+
+  public func youtubeStatus(address: String) async throws -> YouTubePage {
+    try await youtube(address: address, path: "/youtube/status")
+  }
+
+  public func youtubeHome(address: String, cursor: String = "") async throws -> YouTubePage {
+    var query: [String: String] = [:]
+    if !cursor.isEmpty { query["cursor"] = cursor }
+    return try await youtube(address: address, path: "/youtube/home", query: query)
+  }
+
+  public func youtubeSearch(address: String, query: String, cursor: String = "") async throws
+    -> YouTubePage
+  {
+    var fields = ["q": query]
+    if !cursor.isEmpty { fields["cursor"] = cursor }
+    return try await youtube(address: address, path: "/youtube/search", query: fields)
+  }
+
+  private func youtube(address: String, path: String, query: [String: String] = [:]) async throws
+    -> YouTubePage
+  {
+    let endpoint = try nestplayEndpoint(address: address, path: path, query: query)
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "GET"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 20
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let page = try? JSONDecoder().decode(YouTubePage.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return page
+  }
 }
 
 public struct Catalog: Decodable, Sendable, Equatable {
@@ -103,7 +143,28 @@ public struct CatalogItem: Decodable, Sendable, Equatable, Identifiable {
   public let artwork: String
 }
 
-func nestplayEndpoint(address: String, path: String) throws -> URL {
+public struct YouTubePage: Decodable, Sendable, Equatable {
+  public let state: String
+  public let message: String?
+  public let items: [YouTubeItem]
+  public let cursor: String?
+  public init(
+    state: String, message: String? = nil, items: [YouTubeItem] = [], cursor: String? = nil
+  ) {
+    self.state = state
+    self.message = message
+    self.items = items
+    self.cursor = cursor
+  }
+}
+
+public struct YouTubeItem: Decodable, Sendable, Equatable, Identifiable {
+  public let id: String
+  public let title: String
+  public let artwork: String
+}
+
+func nestplayEndpoint(address: String, path: String, query: [String: String] = [:]) throws -> URL {
   guard var url = URLComponents(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
     ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
     let host = url.host, !host.isEmpty,
@@ -111,6 +172,9 @@ func nestplayEndpoint(address: String, path: String) throws -> URL {
     url.path.isEmpty || url.path == "/"
   else { throw HealthError.invalidAddress }
   url.path = path
+  if !query.isEmpty {
+    url.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+  }
   guard let endpoint = url.url else { throw HealthError.invalidAddress }
   return endpoint
 }

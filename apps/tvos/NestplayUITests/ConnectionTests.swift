@@ -33,7 +33,9 @@ final class ConnectionTests: XCTestCase {
     XCTAssertTrue(youtubeHome.waitForExistence(timeout: 5))
     youtubeHome.tap()
     XCTAssertTrue(app.otherElements["youtubeHomeSurface"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["youtubeHomeEmpty"].exists)
+    XCTAssertTrue(
+      app.staticTexts["youtubeHomeEmpty"].exists || app.otherElements["youtubeHomeCatalog"].exists)
+    XCTAssertTrue(app.buttons["youtubeHomeRefresh"].exists)
   }
 
   private func youtubeHomeSwitch(in app: XCUIApplication) -> XCUIElement {

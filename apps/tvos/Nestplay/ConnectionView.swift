@@ -87,7 +87,7 @@ struct ConnectionView: View {
         }
         .tag(Surface.localLibrary)
         .accessibilityIdentifier("localLibraryTab")
-      YouTubeHomeView()
+      YouTubeHomeView(server: address)
         .tabItem {
           Text("YouTube Home")
         }
