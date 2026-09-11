@@ -1,0 +1,34 @@
+---
+description: Signed, issue-scoped commits with complete messages; delete branches after green CI
+alwaysApply: true
+---
+
+# Git hygiene
+
+All commits must be signed. Use `git commit -S`. Never `--no-gpg-sign` or `--no-verify`. Do not change git config; if signing fails, stop and report it.
+
+After a feature branch's CI is green (red tests fail the job; green tests plus the rest of CI succeed) and that work is merged, delete the branch. Remove both `origin/<branch>` and the local branch. Squash-merged branches are not fast-forward ancestors of `develop`; delete them anyway. Do not leave merged CI or feature branches in the repository.
+
+Do not delete `develop` or a branch whose PR is still open or whose CI has not succeeded.
+
+## Issue-scoped, complete commit messages
+
+Every commit must belong to a claimed GitHub issue. Do not commit work that cannot cite the issue it advances or closes.
+
+Write a complete message, not a subject-only one-liner:
+
+- **What** changed (concrete files/behavior, not "misc fixes")
+- **Why** (the problem, constraint, or decision)
+- **How it was verified** (tests, CI, device check) when that applies
+- **Issue reference** GitHub can parse: `Fixes`, `Closes`, or `Resolves` plus the full issue URL. If the commit does not finish the ticket, name the issue and say what remains.
+
+```
+Drop CodeQL from private CI because code scanning APIs are unavailable.
+
+This private repository has no GitHub Code Security license. The CodeQL
+Action was failing on workflow-run API permission errors without producing
+usable alerts. Remove CodeQL from server-ci and tvos-ci; keep tests, builds,
+and format checks.
+
+Fixes https://github.com/frivas/nestplay/issues/12
+```
