@@ -1,0 +1,97 @@
+name: Server CI
+
+on:
+  pull_request:
+    paths:
+      - "server/**"
+      - "Makefile"
+      - ".github/workflows/server-ci.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "server/**"
+      - "Makefile"
+      - ".github/workflows/server-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: server-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Go server
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.mod
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@311b4ee155dcdab395044f00946f664bd51ff173 # v4
+        with:
+          languages: go
+          build-mode: manual
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Check module files
+        shell: bash
+        run: |
+          go mod tidy
+          if [[ -n "$(git status --porcelain -- go.mod go.sum)" ]]; then
+            git diff -- go.mod go.sum
+            echo "Run 'go mod tidy' in server and commit the result."
+            exit 1
+          fi
+
+      - name: Install analysis tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2026.1
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+
+      - name: Run Go vet
+        run: go vet ./...
+
+      - name: Run Staticcheck
+        run: staticcheck ./...
+
+      - name: Run tests with race detection and coverage
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Build server
+        run: go build -trimpath -o "${RUNNER_TEMP}/nestplay-server" .
+
+      - name: Check known vulnerabilities
+        run: govulncheck -test ./...
+
+      - name: Run gosec
+        run: gosec -exclude-generated ./...
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@311b4ee155dcdab395044f00946f664bd51ff173 # v4
+        with:
+          category: /language:go
