@@ -49,7 +49,13 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 
 `GET /youtube/status`, `GET /youtube/home`, and `GET /youtube/search?q=` return uncached JSON `{ "state", "message?", "items", "cursor?" }`. `state` is `connected`, `reconnect_required`, or `unavailable`. Items are landscape recommended videos `{ "id", "title", "artwork" }` with Nestplay artwork paths `/youtube/{id}/artwork`. Pass `cursor` for the next page. The Apple TV never receives cookies, YouTube.js records, or filesystem paths. If the YouTube session is missing or rejected, Nestplay says reconnect is required and does not invent generic recommendations; the local library stays available.
 
-YouTube cookies stay on the Mac. Put a YouTube `Cookie` header or a YouTube-only Netscape cookie file at `~/Library/Application Support/nestplay/youtube-cookies.txt` (or pass `-youtube-cookies`) and restart the server. Do not paste cookies into chat, Git, or the tvOS app.
+YouTube cookies stay on the Mac. From the repo root, with **Chrome signed in to youtube.com** (the browser whose Home shows recommendations):
+
+```sh
+scripts/import-youtube-cookies.sh
+```
+
+That writes a YouTube-only Netscape file to `~/Library/Application Support/nestplay/youtube-cookies.txt`. Pass `safari`, `brave`, or `chrome:Profile 1` as the first argument if needed. Quit the browser if the import cannot open the cookie database. Then restart the Nestplay server. On the Apple TV, **Refresh** loads YouTube Home from the Mac; that shelf stays until you Refresh again. Do not paste cookies into chat, Git, or the tvOS app. You can still place a Cookie header in that same path by hand, or pass `-youtube-cookies`.
 
 Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog with posters and a YouTube Home/search adapter, not a claim that downloads or playback are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 

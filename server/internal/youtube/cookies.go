@@ -12,7 +12,13 @@ func cookieHeader(raw string) string {
 	if !strings.Contains(raw, "\t") {
 		return collapseHeader(raw)
 	}
-	var parts []string
+	type pair struct {
+		name  string
+		value string
+		rank  int
+	}
+	var pairs []pair
+	index := map[string]int{}
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -31,14 +37,50 @@ func cookieHeader(raw string) string {
 		if name == "" || value == "" {
 			continue
 		}
-		parts = append(parts, name+"="+value)
+		rank := 1
+		if strings.Contains(domain, "youtube.com") || strings.Contains(domain, "youtu.be") {
+			rank = 0
+		}
+		item := pair{name: name, value: value, rank: rank}
+		if i, ok := index[name]; ok {
+			if rank <= pairs[i].rank {
+				pairs[i] = item
+			}
+			continue
+		}
+		index[name] = len(pairs)
+		pairs = append(pairs, item)
+	}
+	parts := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		parts = append(parts, p.name+"="+p.value)
 	}
 	return strings.Join(parts, "; ")
 }
 
 func collapseHeader(raw string) string {
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == '\n' || r == '\r'
-	})
+	index := map[string]int{}
+	var parts []string
+	for _, chunk := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ';'
+	}) {
+		chunk = strings.TrimSpace(chunk)
+		if chunk == "" {
+			continue
+		}
+		name, value, ok := strings.Cut(chunk, "=")
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if !ok || name == "" || value == "" {
+			continue
+		}
+		item := name + "=" + value
+		if i, ok := index[name]; ok {
+			parts[i] = item
+			continue
+		}
+		index[name] = len(parts)
+		parts = append(parts, item)
+	}
 	return strings.Join(parts, "; ")
 }

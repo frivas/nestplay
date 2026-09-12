@@ -18,7 +18,7 @@ func (f *Fake) page(key string) Page {
 
 func (f *Fake) Status(context.Context) Page { return f.page("status") }
 
-func (f *Fake) Home(_ context.Context, cursor string) Page {
+func (f *Fake) Home(_ context.Context, cursor string, _ bool) Page {
 	return f.page("home:" + cursor)
 }
 

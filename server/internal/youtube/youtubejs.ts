@@ -1,4 +1,5 @@
 import { Innertube } from "npm:youtubei.js@18.0.0";
+import { emptyHomeMessage, homeItemsFromTree, landscapeVideos } from "./youtube_items.ts";
 
 type Request = {
   op: "status" | "home" | "search";
@@ -6,9 +7,6 @@ type Request = {
   query?: string;
 };
 
-type Item = { id: string; title: string };
-
-const SHORT_TYPES = new Set(["ReelItem", "ShortsLockupView"]);
 const homes = new Map<string, Awaited<ReturnType<Innertube["getHomeFeed"]>>>();
 const searches = new Map<
   string,
@@ -27,46 +25,6 @@ function cookieHeader(): string {
   }
 }
 
-function videoID(value: unknown): string {
-  if (typeof value !== "string") return "";
-  if (!/^[A-Za-z0-9_-]{11}$/.test(value)) return "";
-  return value;
-}
-
-function videoTitle(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (value && typeof value === "object") {
-    const record = value as { text?: unknown; toString?: () => string };
-    if (typeof record.text === "string") return record.text.trim();
-    if (typeof record.toString === "function") {
-      const text = record.toString();
-      if (text && text !== "[object Object]") return text.trim();
-    }
-  }
-  return "";
-}
-
-function landscapeVideos(videos: unknown[]): Item[] {
-  const out: Item[] = [];
-  const seen = new Set<string>();
-  for (const raw of videos) {
-    const v = raw as {
-      type?: string;
-      is_short?: boolean;
-      video_id?: unknown;
-      id?: unknown;
-      title?: unknown;
-    };
-    if (!v || SHORT_TYPES.has(v.type ?? "") || v.is_short === true) continue;
-    const id = videoID(v.video_id) || videoID(v.id);
-    const title = videoTitle(v.title);
-    if (!id || !title || seen.has(id)) continue;
-    seen.add(id);
-    out.push({ id, title });
-  }
-  return out;
-}
-
 async function session(): Promise<Innertube> {
   if (tube) return tube;
   const cookie = cookieHeader();
@@ -79,6 +37,11 @@ async function session(): Promise<Innertube> {
 
 function cursorToken(): string {
   return crypto.randomUUID().replaceAll("-", "");
+}
+
+function memoList(feed: { memo?: Map<string, unknown> }, type: string): unknown[] {
+  const items = feed.memo?.get(type);
+  return Array.isArray(items) ? items : [];
 }
 
 async function handle(req: Request): Promise<unknown> {
@@ -116,11 +79,20 @@ async function handle(req: Request): Promise<unknown> {
     const page = req.cursor ? await feed.getContinuation() : feed;
     const next = page.has_continuation ? cursorToken() : "";
     if (next) homes.set(next, page);
+    let items = landscapeVideos([...page.videos]);
+    if (items.length === 0 && !req.cursor) {
+      const raw = await yt.actions.execute("/browse", {
+        browseId: "FEwhat_to_watch",
+        parse: false,
+      }) as { data?: unknown };
+      items = homeItemsFromTree(raw.data);
+    }
     return {
       ok: true,
       state: "connected",
-      items: landscapeVideos([...page.videos]),
+      items,
       cursor: next,
+      message: items.length === 0 ? emptyHomeMessage(memoList(page, "FeedNudge")) : "",
     };
   }
 

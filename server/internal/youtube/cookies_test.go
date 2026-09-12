@@ -19,6 +19,21 @@ func TestCookieHeaderKeepsYouTubeNetscapePairs(t *testing.T) {
 	}
 }
 
+func TestCookieHeaderPrefersYouTubeHostForDuplicateNames(t *testing.T) {
+	raw := ".google.com\tTRUE\t/\tTRUE\t0\tSAPISID\tgoogle\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tyoutube\n"
+	got := cookieHeader(raw)
+	if got != "SAPISID=youtube" {
+		t.Fatalf("got %q", got)
+	}
+	raw = ".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tyoutube\n" +
+		".google.com\tTRUE\t/\tTRUE\t0\tSAPISID\tgoogle\n"
+	got = cookieHeader(raw)
+	if got != "SAPISID=youtube" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestCookieHeaderPassesThroughHeaderForm(t *testing.T) {
 	got := cookieHeader("SID=abc; HSID=def\n")
 	if got != "SID=abc; HSID=def" {

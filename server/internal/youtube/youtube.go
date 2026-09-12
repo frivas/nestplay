@@ -24,7 +24,7 @@ type Page struct {
 
 type Adapter interface {
 	Status(ctx context.Context) Page
-	Home(ctx context.Context, cursor string) Page
+	Home(ctx context.Context, cursor string, refresh bool) Page
 	Search(ctx context.Context, query, cursor string) Page
 }
 
@@ -39,7 +39,7 @@ func (disabled) Status(context.Context) Page {
 	}
 }
 
-func (d disabled) Home(ctx context.Context, _ string) Page {
+func (d disabled) Home(ctx context.Context, _ string, _ bool) Page {
 	return d.Status(ctx)
 }
 

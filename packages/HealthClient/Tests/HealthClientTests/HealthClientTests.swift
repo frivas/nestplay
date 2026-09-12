@@ -114,6 +114,17 @@ private struct OfflineTransport: HealthTransport {
   #expect(request?.url?.absoluteString == "http://mac.local/youtube/home")
 }
 
+@Test func refreshesYouTubeHomeWithQuery() async throws {
+  let transport = StubTransport(
+    body: "{\"state\":\"connected\",\"items\":[],\"cursor\":\"\"}"
+  )
+  _ = try await HealthClient(transport: transport).youtubeHome(
+    address: "http://mac.local", refresh: true)
+  let request = await transport.request
+  #expect(request?.url?.path == "/youtube/home")
+  #expect(request?.url?.query?.contains("refresh=1") == true)
+}
+
 @Test func searchesYouTubeWithQuery() async throws {
   let transport = StubTransport(
     body: "{\"state\":\"connected\",\"items\":[],\"cursor\":\"\"}"

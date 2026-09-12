@@ -95,9 +95,12 @@ public struct HealthClient: Sendable {
     try await youtube(address: address, path: "/youtube/status")
   }
 
-  public func youtubeHome(address: String, cursor: String = "") async throws -> YouTubePage {
+  public func youtubeHome(address: String, cursor: String = "", refresh: Bool = false) async throws
+    -> YouTubePage
+  {
     var query: [String: String] = [:]
     if !cursor.isEmpty { query["cursor"] = cursor }
+    if refresh { query["refresh"] = "1" }
     return try await youtube(address: address, path: "/youtube/home", query: query)
   }
 

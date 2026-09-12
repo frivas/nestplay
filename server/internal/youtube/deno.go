@@ -16,6 +16,9 @@ import (
 //go:embed youtubejs.ts
 var youtubeJS []byte
 
+//go:embed youtube_items.ts
+var youtubeItems []byte
+
 type denoAdapter struct {
 	mu      sync.Mutex
 	cmd     *exec.Cmd
@@ -62,7 +65,7 @@ func (a *denoAdapter) Status(ctx context.Context) Page {
 	return a.roundTrip(ctx, map[string]string{"op": "status"})
 }
 
-func (a *denoAdapter) Home(ctx context.Context, cursor string) Page {
+func (a *denoAdapter) Home(ctx context.Context, cursor string, _ bool) Page {
 	req := map[string]string{"op": "home"}
 	if cursor != "" {
 		req["cursor"] = cursor
@@ -194,8 +197,11 @@ func writeScript() (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
+	if err := os.WriteFile(filepath.Join(dir, "youtube_items.ts"), youtubeItems, 0o600); err != nil { // #nosec G306 -- adapter script is a fixed file under the Nestplay cache directory
+		return "", err
+	}
 	path := filepath.Join(dir, "youtubejs.ts")
-	if err := os.WriteFile(path, youtubeJS, 0o600); err != nil {
+	if err := os.WriteFile(path, youtubeJS, 0o600); err != nil { // #nosec G306 -- adapter script is a fixed file under the Nestplay cache directory
 		return "", err
 	}
 	return path, nil

@@ -123,7 +123,7 @@ func youtubeStatusHandler(yt youtube.Adapter) http.HandlerFunc {
 
 func youtubeHomeHandler(yt youtube.Adapter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeYouTubePage(w, yt.Home(r.Context(), r.URL.Query().Get("cursor")))
+		writeYouTubePage(w, yt.Home(r.Context(), r.URL.Query().Get("cursor"), r.URL.Query().Get("refresh") == "1"))
 	}
 }
 
@@ -271,7 +271,7 @@ func main() {
 		log.Fatal("listen must not be empty")
 	}
 	server := &http.Server{
-		Addr: cfg.Listen, Handler: nestplayHandler(cfg.LibraryRoot, youtube.New(cfg.YouTubeCookies)),
+		Addr: cfg.Listen, Handler: nestplayHandler(cfg.LibraryRoot, youtube.Cached(youtube.New(cfg.YouTubeCookies), youtube.DefaultHomeCacheFile(), cfg.YouTubeCookies)),
 		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 45 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 	}
