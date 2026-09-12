@@ -8,13 +8,6 @@ struct YouTubeHomeView: View {
   @State private var query = ""
   @State private var loading = false
 
-  private let columns = [
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-  ]
-
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
       header
@@ -36,26 +29,24 @@ struct YouTubeHomeView: View {
           .accessibilityIdentifier("youtubeHomeEmpty")
       }
       if !page.items.isEmpty {
-        ScrollView {
-          LazyVGrid(columns: columns, spacing: 44) {
-            ForEach(page.items) { item in
-              RemotePoster(title: item.title, artwork: item.artwork, server: server)
-            }
-          }
-          .padding(NestEgg.focusGutter)
+        PosterGrid(
+          items: page.items,
+          server: server,
+          catalogID: "youtubeHomeCatalog",
+          title: { $0.title },
+          artwork: { $0.artwork }
+        ) {
           if let cursor = page.cursor, !cursor.isEmpty {
             Button(searching ? "More results" : "More recommendations") {
               Task { await loadMore() }
             }
-            .buttonStyle(.borderless)
             .tint(NestEgg.gold)
-            .padding(.bottom, 80)
           }
         }
-        .scrollClipDisabled()
-        .accessibilityIdentifier("youtubeHomeCatalog")
       }
     }
+    .padding(.horizontal, 72)
+    .padding(.top, 28)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .accessibilityIdentifier("youtubeHomeSurface")
     .task { await refresh() }
@@ -73,17 +64,14 @@ struct YouTubeHomeView: View {
           query = ""
           Task { await refresh() }
         }
-        .buttonStyle(.borderless)
         .tint(NestEgg.gold)
       } else {
         Button("Refresh") { Task { await refresh() } }
           .disabled(loading)
-          .buttonStyle(.borderless)
           .tint(NestEgg.gold)
           .accessibilityIdentifier("youtubeHomeRefresh")
         Button("Search") { searching = true }
           .disabled(page.state == "reconnect_required")
-          .buttonStyle(.borderless)
           .tint(NestEgg.gold)
           .accessibilityIdentifier("youtubeHomeSearch")
       }
@@ -99,7 +87,6 @@ struct YouTubeHomeView: View {
         .accessibilityIdentifier("youtubeSearchField")
       Button("Find") { Task { await search() } }
         .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || loading)
-        .buttonStyle(.borderless)
         .tint(NestEgg.gold)
         .accessibilityIdentifier("youtubeSearchSubmit")
     }

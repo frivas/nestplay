@@ -5,8 +5,6 @@ enum NestEgg {
   static let cream = Color(red: 0.965, green: 0.933, blue: 0.847)
   static let gold = Color(red: 0.910, green: 0.784, blue: 0.353)
   static let teal = Color(red: 0.106, green: 0.255, blue: 0.282)
-  static let chrome: CGFloat = 88
-  static let focusGutter: CGFloat = 56
 }
 
 struct RemotePoster: View {
@@ -29,7 +27,7 @@ struct RemotePoster: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
-    .buttonStyle(.borderless)
+    .buttonStyle(.card)
     .tint(NestEgg.gold)
     .accessibilityLabel(title)
   }
@@ -51,6 +49,7 @@ struct RemotePoster: View {
           placeholder
         }
       }
+      .transaction { $0.animation = nil }
     } else {
       placeholder
     }
@@ -76,30 +75,50 @@ struct RemotePoster: View {
   }
 }
 
-struct PosterGrid<Item: Identifiable>: View {
+struct PosterGrid<Item: Identifiable, Footer: View>: View {
   let items: [Item]
   let server: String
   let catalogID: String
   let title: (Item) -> String
   let artwork: (Item) -> String
+  var footer: Footer
+
+  init(
+    items: [Item],
+    server: String,
+    catalogID: String,
+    title: @escaping (Item) -> String,
+    artwork: @escaping (Item) -> String,
+    @ViewBuilder footer: () -> Footer
+  ) {
+    self.items = items
+    self.server = server
+    self.catalogID = catalogID
+    self.title = title
+    self.artwork = artwork
+    self.footer = footer()
+  }
 
   private let columns = [
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
-    GridItem(.flexible(), spacing: 36),
+    GridItem(.flexible(), spacing: 80),
+    GridItem(.flexible(), spacing: 80),
+    GridItem(.flexible(), spacing: 80),
   ]
 
   var body: some View {
     ScrollView {
-      LazyVGrid(columns: columns, spacing: 44) {
-        ForEach(items) { item in
-          RemotePoster(title: title(item), artwork: artwork(item), server: server)
+      VStack(alignment: .leading, spacing: 28) {
+        LazyVGrid(columns: columns, spacing: 56) {
+          ForEach(items) { item in
+            RemotePoster(title: title(item), artwork: artwork(item), server: server)
+          }
         }
+        footer
       }
-      .padding(NestEgg.focusGutter)
+      .padding(.horizontal, 24)
+      .padding(.vertical, 28)
+      .padding(.bottom, 80)
     }
-    .scrollClipDisabled()
     .accessibilityIdentifier(catalogID)
   }
 }

@@ -39,7 +39,6 @@ final class ConnectionTests: XCTestCase {
   }
 
   private func youtubeHomeSwitch(in app: XCUIApplication) -> XCUIElement {
-    if app.buttons["youtubeHomeTab"].exists { return app.buttons["youtubeHomeTab"] }
     let identified = app.descendants(matching: .any)["youtubeHomeTab"]
     if identified.exists { return identified }
     if app.buttons["YouTube Home"].exists { return app.buttons["YouTube Home"] }

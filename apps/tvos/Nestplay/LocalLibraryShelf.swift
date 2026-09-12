@@ -24,7 +24,9 @@ struct LocalLibraryShelf: View {
           catalogID: "libraryCatalog",
           title: { $0.title },
           artwork: { $0.artwork }
-        )
+        ) {
+          EmptyView()
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
