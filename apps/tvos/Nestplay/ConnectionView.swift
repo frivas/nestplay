@@ -96,6 +96,16 @@ struct ConnectionView: View {
         .accessibilityIdentifier("youtubeHomeTab")
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .task {
+      let submitted = address
+      while !Task.isCancelled {
+        for await _ in HealthClient().watchLibrary(address: submitted) {
+          guard !Task.isCancelled else { return }
+          await reloadLibrary(submitted)
+        }
+        try? await Task.sleep(for: .seconds(2))
+      }
+    }
   }
 
   private var localLibraryTab: some View {
@@ -179,17 +189,7 @@ struct ConnectionView: View {
         }
         trace("info", "check connected address=\(submitted)")
         state = .connected
-        do {
-          let library = try await HealthClient().library(address: submitted)
-          guard !Task.isCancelled else { return }
-          catalog = library.items
-          catalogMessage = library.items.isEmpty ? "No videos in the watched folder yet." : ""
-          trace("info", "library loaded count=\(library.items.count)")
-        } catch {
-          guard !Task.isCancelled else { return }
-          catalogMessage = "Connected, but the library list could not be loaded."
-          trace("error", "library failed error=\(error.localizedDescription)")
-        }
+        await reloadLibrary(submitted)
       } catch {
         guard !Task.isCancelled else {
           trace("debug", "check cancelled address=\(submitted)")
@@ -198,6 +198,20 @@ struct ConnectionView: View {
         trace("error", "check failed address=\(submitted) error=\(error.localizedDescription)")
         state = .failed(error.localizedDescription)
       }
+    }
+  }
+
+  private func reloadLibrary(_ submitted: String) async {
+    do {
+      let library = try await HealthClient().library(address: submitted)
+      guard !Task.isCancelled else { return }
+      catalog = library.items
+      catalogMessage = library.items.isEmpty ? "No videos in the watched folder yet." : ""
+      trace("info", "library loaded count=\(library.items.count)")
+    } catch {
+      guard !Task.isCancelled else { return }
+      catalogMessage = "Connected, but the library list could not be loaded."
+      trace("error", "library failed error=\(error.localizedDescription)")
     }
   }
 

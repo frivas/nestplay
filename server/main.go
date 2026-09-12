@@ -30,10 +30,17 @@ type config struct {
 const maxDebugBody = 64 << 10
 
 func apiHandler(libraryRoot string) http.Handler {
-	return nestplayHandler(libraryRoot, youtube.Disabled())
+	cat, err := catalog.OpenImmediate(libraryRoot, "")
+	if err != nil {
+		cat, _ = catalog.OpenImmediate("", "")
+	}
+	return nestplayHandler(cat, youtube.Disabled())
 }
 
-func nestplayHandler(libraryRoot string, yt youtube.Adapter) http.Handler {
+func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter) http.Handler {
+	if cat == nil {
+		cat, _ = catalog.OpenImmediate("", "")
+	}
 	if yt == nil {
 		yt = youtube.Disabled()
 	}
@@ -47,8 +54,9 @@ func nestplayHandler(libraryRoot string, yt youtube.Adapter) http.Handler {
 			APIVersion int    `json:"api_version"`
 		}{"nestplay", "ok", 1})
 	})
-	mux.HandleFunc("GET /library", libraryHandler(libraryRoot))
-	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(libraryRoot))
+	mux.HandleFunc("GET /library", libraryHandler(cat))
+	mux.HandleFunc("GET /library/events", libraryEventsHandler(cat))
+	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(cat))
 	mux.HandleFunc("GET /youtube/status", youtubeStatusHandler(yt))
 	mux.HandleFunc("GET /youtube/home", youtubeHomeHandler(yt))
 	mux.HandleFunc("GET /youtube/search", youtubeSearchHandler(yt))
@@ -70,13 +78,9 @@ type youtubeItem struct {
 	Artwork string `json:"artwork"`
 }
 
-func libraryHandler(root string) http.HandlerFunc {
+func libraryHandler(cat *catalog.Catalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		items, err := catalog.List(root)
-		if err != nil {
-			http.Error(w, "library unavailable", http.StatusInternalServerError)
-			return
-		}
+		items := cat.Items()
 		out := make([]libraryItem, len(items))
 		for i, item := range items {
 			out[i] = libraryItem{
@@ -92,14 +96,56 @@ func libraryHandler(root string) http.HandlerFunc {
 	}
 }
 
-func artworkHandler(root string) http.HandlerFunc {
+func libraryEventsHandler(cat *catalog.Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "events unavailable", http.StatusInternalServerError)
+			return
+		}
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		if _, err := io.WriteString(w, ": connected\n\n"); err != nil {
+			return
+		}
+		flusher.Flush()
+		ch, unsub := cat.Subscribe()
+		defer unsub()
+		ping := time.NewTicker(15 * time.Second)
+		defer ping.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ping.C:
+				if _, err := io.WriteString(w, ": ping\n\n"); err != nil {
+					return
+				}
+				flusher.Flush()
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+				if _, err := io.WriteString(w, "data: {\"changed\":true}\n\n"); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+func artworkHandler(cat *catalog.Catalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if !catalogID(id) {
 			http.NotFound(w, r)
 			return
 		}
-		file, err := catalog.FileForID(root, id)
+		file, err := cat.FileByID(id)
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -270,16 +316,22 @@ func main() {
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
 	}
+	cat, err := catalog.Open(cfg.LibraryRoot, catalog.DefaultDBPath())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cat.Close()
 	server := &http.Server{
-		Addr: cfg.Listen, Handler: nestplayHandler(cfg.LibraryRoot, youtube.Cached(youtube.New(cfg.YouTubeCookies), youtube.DefaultHomeCacheFile(), cfg.YouTubeCookies)),
+		Addr: cfg.Listen, Handler: nestplayHandler(cat, youtube.Cached(youtube.New(cfg.YouTubeCookies), youtube.DefaultHomeCacheFile(), cfg.YouTubeCookies)),
 		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 45 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go cat.Watch(ctx)
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/{id}/artwork\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/events\nGET /library/{id}/artwork\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
 	select {
 	case err := <-done:
 		if errors.Is(err, http.ErrServerClosed) {

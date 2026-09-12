@@ -48,6 +48,16 @@ public struct HealthClient: Sendable {
   private let transport: any HealthTransport
   public init(transport: any HealthTransport = SessionTransport()) { self.transport = transport }
 
+  private static func libraryEventsSession() -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 90
+    config.timeoutIntervalForResource = 0
+    config.urlCache = nil
+    config.waitsForConnectivity = false
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    return URLSession(configuration: config)
+  }
+
   public func check(address: String) async throws -> Health {
     let endpoint = try nestplayEndpoint(address: address, path: "/health")
     var request = URLRequest(url: endpoint)
@@ -69,6 +79,40 @@ public struct HealthClient: Sendable {
       throw HealthError.incompatibleServer
     }
     return health
+  }
+
+  public func watchLibrary(address: String) -> AsyncStream<Void> {
+    AsyncStream { continuation in
+      let session = Self.libraryEventsSession()
+      let task = Task {
+        defer { session.finishTasksAndInvalidate() }
+        do {
+          let endpoint = try nestplayEndpoint(address: address, path: "/library/events")
+          var request = URLRequest(url: endpoint)
+          request.httpMethod = "GET"
+          request.cachePolicy = .reloadIgnoringLocalCacheData
+          request.timeoutInterval = 86_400
+          request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+          let (bytes, response) = try await session.bytes(for: request)
+          guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            continuation.finish()
+            return
+          }
+          for try await line in bytes.lines {
+            try Task.checkCancellation()
+            if libraryEventSignalsChange(line) { continuation.yield(()) }
+          }
+        } catch {
+          continuation.finish()
+          return
+        }
+        continuation.finish()
+      }
+      continuation.onTermination = { _ in
+        task.cancel()
+        session.invalidateAndCancel()
+      }
+    }
   }
 
   public func library(address: String) async throws -> Catalog {
@@ -165,6 +209,17 @@ public struct YouTubeItem: Decodable, Sendable, Equatable, Identifiable {
   public let id: String
   public let title: String
   public let artwork: String
+}
+
+func libraryEventSignalsChange(_ line: String) -> Bool {
+  let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard trimmed.hasPrefix("data:") else { return false }
+  let payload = trimmed.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+  guard let data = payload.data(using: .utf8),
+    let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    let changed = object["changed"] as? Bool
+  else { return false }
+  return changed
 }
 
 func nestplayEndpoint(address: String, path: String, query: [String: String] = [:]) throws -> URL {

@@ -21,7 +21,7 @@ Optional configuration:
 .build/bin/nestplay-server -listen 0.0.0.0:8766
 ```
 
-Stop with Control-C. To rebuild, install Go 1.23 or newer and run `make server`. No third-party Go modules are needed.
+Stop with Control-C. To rebuild, install Go 1.25 or newer and run `make server`. The catalog watcher uses `github.com/fsnotify/fsnotify` and persists the snapshot with `modernc.org/sqlite`.
 
 ## Run the Apple TV app
 
@@ -46,6 +46,8 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 `POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac.
 
 `GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename", "artwork" } ] }`. `artwork` is a Nestplay path such as `/library/{id}/artwork`, never a filesystem path. `GET /library/{id}/artwork` returns a 16:9 JPEG still from the watched-folder file, or a designed placeholder if a still cannot be taken. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`.
+
+`GET /library/events` is a Server-Sent Events stream. Nestplay writes `data: {"changed":true}` when the in-memory catalog snapshot changes; the Apple TV then reloads `GET /library` without reconnecting. Watched-folder paths never appear on this stream. Files already on disk are admitted at startup; new or growing files wait until their size is stable. Hidden names and `*.part` files stay out of the snapshot.
 
 `GET /youtube/status`, `GET /youtube/home`, and `GET /youtube/search?q=` return uncached JSON `{ "state", "message?", "items", "cursor?" }`. `state` is `connected`, `reconnect_required`, or `unavailable`. Items are landscape recommended videos `{ "id", "title", "artwork" }` with Nestplay artwork paths `/youtube/{id}/artwork`. Pass `cursor` for the next page. The Apple TV never receives cookies, YouTube.js records, or filesystem paths. If the YouTube session is missing or rejected, Nestplay says reconnect is required and does not invent generic recommendations; the local library stays available.
 

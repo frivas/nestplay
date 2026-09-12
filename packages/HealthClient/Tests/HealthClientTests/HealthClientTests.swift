@@ -86,6 +86,15 @@ private struct OfflineTransport: HealthTransport {
   #expect(event == DebugEvent(source: "tvos", level: "info", message: "check started"))
 }
 
+@Test func detectsLibraryChangedEvent() {
+  #expect(libraryEventSignalsChange("data: {\"changed\":true}"))
+  #expect(libraryEventSignalsChange("data: {\"changed\": true}"))
+  #expect(!libraryEventSignalsChange(": ping"))
+  #expect(!libraryEventSignalsChange(": connected"))
+  #expect(!libraryEventSignalsChange("data: {\"changed\":false}"))
+  #expect(!libraryEventSignalsChange("event: changed"))
+}
+
 @Test func loadsLibraryFromEndpoint() async throws {
   let transport = StubTransport(
     body:

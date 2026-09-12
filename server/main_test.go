@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,9 +9,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"nestplay.local/server/internal/catalog"
 	"nestplay.local/server/internal/youtube"
 )
+
+func mustCatalog(t *testing.T, root string) *catalog.Catalog {
+	t.Helper()
+	cat, err := catalog.OpenImmediate(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cat.Close() })
+	return cat
+}
 
 func TestHealthContract(t *testing.T) {
 	w := httptest.NewRecorder()
@@ -176,6 +189,81 @@ func TestLibraryJSON(t *testing.T) {
 	})
 }
 
+func TestLibraryEventsSignalsChange(t *testing.T) {
+	root := t.TempDir()
+	cat := mustCatalog(t, root)
+	srv := httptest.NewServer(nestplayHandler(cat, youtube.Disabled()))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/library/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("type = %q", resp.Header.Get("Content-Type"))
+	}
+
+	got := make(chan string, 1)
+	ready := make(chan struct{})
+	go func() {
+		buf := make([]byte, 0, 512)
+		tmp := make([]byte, 256)
+		connected := false
+		for {
+			n, readErr := resp.Body.Read(tmp)
+			buf = append(buf, tmp[:n]...)
+			body := string(buf)
+			if !connected && strings.Contains(body, ": connected") {
+				connected = true
+				close(ready)
+			}
+			if strings.Contains(body, `data: {"changed":true}`) {
+				got <- body
+				return
+			}
+			if readErr != nil {
+				if !connected {
+					close(ready)
+				}
+				got <- "err:" + readErr.Error() + " body:" + body
+				return
+			}
+		}
+	}()
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for events stream")
+	}
+	if err := os.WriteFile(filepath.Join(root, "Heat.mkv"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case body := <-got:
+		if !strings.Contains(body, `data: {"changed":true}`) {
+			t.Fatalf("events: %s", body)
+		}
+		if strings.Contains(body, root) {
+			t.Fatal("watched-folder path leaked on the wire")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for catalog change")
+	}
+}
+
 func TestYouTubeJSON(t *testing.T) {
 	t.Run("reconnect without cookies", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -217,7 +305,7 @@ func TestYouTubeJSON(t *testing.T) {
 				},
 			},
 		}
-		h := nestplayHandler("", fake)
+		h := nestplayHandler(mustCatalog(t, ""), fake)
 		home := httptest.NewRecorder()
 		h.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/youtube/home", nil))
 		var first struct {

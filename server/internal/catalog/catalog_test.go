@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestListEmptyAndMissingRoots(t *testing.T) {
@@ -57,6 +58,174 @@ func TestListFileRootIsEmptyCatalog(t *testing.T) {
 	items, err := List(path)
 	if err != nil || len(items) != 0 {
 		t.Fatalf("file root: %+v %v", items, err)
+	}
+}
+
+func TestNewestFileAppearsFirst(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "Alpha.mkv"), []byte("x"))
+	time.Sleep(20 * time.Millisecond)
+	mustWrite(t, filepath.Join(root, "Zebra.mkv"), []byte("x"))
+	items, err := List(root)
+	if err != nil || len(items) != 2 || items[0].Title != "Zebra" || items[1].Title != "Alpha" {
+		t.Fatalf("newest should be first: %+v %v", items, err)
+	}
+
+	c, err := open(root, "", 0, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	time.Sleep(20 * time.Millisecond)
+	mustWrite(t, filepath.Join(root, "Heat.mkv"), []byte("x"))
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	got := c.Items()
+	if len(got) != 3 || got[0].Title != "Heat" {
+		t.Fatalf("admitted file should lead: %+v", got)
+	}
+}
+
+func TestListSkipsPartFiles(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "Heat.mkv.part"), []byte("x"))
+	mustWrite(t, filepath.Join(root, "Heat.mkv"), []byte("x"))
+	items, err := List(root)
+	if err != nil || len(items) != 1 || items[0].Filename != "Heat.mkv" {
+		t.Fatalf("got %+v %v", items, err)
+	}
+}
+
+func TestGrowingFileWaitsToSettle(t *testing.T) {
+	root := t.TempDir()
+	now := time.Now()
+	clock := func() time.Time { return now }
+	c, err := open(root, filepath.Join(t.TempDir(), "library.sqlite"), 100*time.Millisecond, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	path := filepath.Join(root, "Heat.mkv")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Items()) != 0 {
+		t.Fatalf("copying file admitted early: %+v", c.Items())
+	}
+
+	now = now.Add(40 * time.Millisecond)
+	if _, err := f.Write([]byte("def")); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Items()) != 0 {
+		t.Fatalf("still copying: %+v", c.Items())
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(120 * time.Millisecond)
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	items := c.Items()
+	if len(items) != 1 || items[0].Title != "Heat" {
+		t.Fatalf("settled: %+v", items)
+	}
+	file, err := c.FileByID(items[0].ID)
+	if err != nil || filepath.Base(file.Path) != "Heat.mkv" {
+		t.Fatalf("FileByID: %+v %v", file, err)
+	}
+}
+
+func TestSnapshotIDsMatchAfterRescan(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "Heat.mkv"), []byte("x"))
+	c, err := open(root, filepath.Join(t.TempDir(), "library.sqlite"), 0, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	first := c.Items()
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	again := c.Items()
+	if len(first) != 1 || first[0].ID != again[0].ID {
+		t.Fatalf("ids diverged: %+v %+v", first, again)
+	}
+}
+
+func TestSubscribeSignalsWhenCatalogChanges(t *testing.T) {
+	root := t.TempDir()
+	c, err := open(root, "", 0, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ch, unsub := c.Subscribe()
+	defer unsub()
+	mustWrite(t, filepath.Join(root, "Heat.mkv"), []byte("x"))
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ch:
+	default:
+		t.Fatal("expected change signal")
+	}
+}
+
+func TestRewrittenFileStaysVisibleUntilSettled(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "Heat.mkv")
+	mustWrite(t, path, []byte("abc"))
+	now := time.Now()
+	clock := func() time.Time { return now }
+	c, err := open(root, "", 100*time.Millisecond, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if len(c.Items()) != 1 {
+		t.Fatalf("startup: %+v", c.Items())
+	}
+
+	if err := os.WriteFile(path, []byte("abcdef"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Items()) != 1 || c.Items()[0].Title != "Heat" {
+		t.Fatalf("rewriting hid the title: %+v", c.Items())
+	}
+
+	now = now.Add(120 * time.Millisecond)
+	if err := c.Scan(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := c.FileByID(c.Items()[0].ID)
+	if err != nil || file.size != 6 {
+		t.Fatalf("settled rewrite: %+v %v", file, err)
 	}
 }
 
