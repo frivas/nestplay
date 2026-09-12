@@ -40,7 +40,7 @@ struct YouTubeHomeView: View {
             Button(searching ? "More results" : "More recommendations") {
               Task { await loadMore() }
             }
-            .tint(NestEgg.gold)
+            .foregroundStyle(NestEgg.cream)
           }
         }
       }
@@ -64,15 +64,15 @@ struct YouTubeHomeView: View {
           query = ""
           Task { await refresh() }
         }
-        .tint(NestEgg.gold)
+        .foregroundStyle(NestEgg.cream)
       } else {
         Button("Refresh") { Task { await refresh() } }
           .disabled(loading)
-          .tint(NestEgg.gold)
+          .foregroundStyle(NestEgg.cream)
           .accessibilityIdentifier("youtubeHomeRefresh")
         Button("Search") { searching = true }
           .disabled(page.state == "reconnect_required")
-          .tint(NestEgg.gold)
+          .foregroundStyle(NestEgg.cream)
           .accessibilityIdentifier("youtubeHomeSearch")
       }
     }
@@ -87,7 +87,7 @@ struct YouTubeHomeView: View {
         .accessibilityIdentifier("youtubeSearchField")
       Button("Find") { Task { await search() } }
         .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || loading)
-        .tint(NestEgg.gold)
+        .foregroundStyle(NestEgg.cream)
         .accessibilityIdentifier("youtubeSearchSubmit")
     }
   }
