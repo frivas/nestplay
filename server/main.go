@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -57,6 +59,7 @@ func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter) http.Handler {
 	mux.HandleFunc("GET /library", libraryHandler(cat))
 	mux.HandleFunc("GET /library/events", libraryEventsHandler(cat))
 	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(cat))
+	mux.HandleFunc("GET /library/{id}/media", mediaHandler(cat))
 	mux.HandleFunc("GET /youtube/status", youtubeStatusHandler(yt))
 	mux.HandleFunc("GET /youtube/home", youtubeHomeHandler(yt))
 	mux.HandleFunc("GET /youtube/search", youtubeSearchHandler(yt))
@@ -66,10 +69,11 @@ func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter) http.Handler {
 }
 
 type libraryItem struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Filename string `json:"filename"`
-	Artwork  string `json:"artwork"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Filename   string `json:"filename"`
+	Collection string `json:"collection"`
+	Artwork    string `json:"artwork"`
 }
 
 type youtubeItem struct {
@@ -85,7 +89,8 @@ func libraryHandler(cat *catalog.Catalog) http.HandlerFunc {
 		for i, item := range items {
 			out[i] = libraryItem{
 				ID: item.ID, Title: item.Title, Filename: item.Filename,
-				Artwork: "/library/" + item.ID + "/artwork",
+				Collection: item.Collection,
+				Artwork:    "/library/" + item.ID + "/artwork",
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -158,6 +163,38 @@ func artworkHandler(cat *catalog.Catalog) http.HandlerFunc {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 		http.ServeContent(w, r, id+".jpg", time.Time{}, bytes.NewReader(data))
+	}
+}
+
+func mediaHandler(cat *catalog.Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !catalogID(id) {
+			http.NotFound(w, r)
+			return
+		}
+		file, err := cat.FileByID(id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		f, err := os.Open(file.Path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil {
+			http.Error(w, "media unavailable", http.StatusInternalServerError)
+			return
+		}
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+		if ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(file.Item.Filename))); ctype != "" {
+			w.Header().Set("Content-Type", ctype)
+		}
+		w.Header().Set("Cache-Control", "private")
+		http.ServeContent(w, r, file.Item.Filename, stat.ModTime(), f)
 	}
 }
 
@@ -331,7 +368,7 @@ func main() {
 	go cat.Watch(ctx)
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/events\nGET /library/{id}/artwork\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/events\nGET /library/{id}/artwork\nGET /library/{id}/media\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
 	select {
 	case err := <-done:
 		if errors.Is(err, http.ErrServerClosed) {

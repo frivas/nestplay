@@ -12,7 +12,7 @@ make run
 
 It listens on port 8765. The tvOS PoC checks `http://aquinas.local:8765` by itself. Use the Mac's address, not `localhost`, on a physical Apple TV. If `.local` fails, the fallback is the Mac LAN IP on port 8765.
 
-If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health, a read-only local catalog, and YouTube Home/search. Downloads and playback are still deferred.
+If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health, a live local catalog, YouTube Home/search, and direct play of completed local-library files. Downloads and conversion are still deferred.
 
 Optional configuration:
 
@@ -45,7 +45,7 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 
 `POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac.
 
-`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename", "artwork" } ] }`. `artwork` is a Nestplay path such as `/library/{id}/artwork`, never a filesystem path. `GET /library/{id}/artwork` returns a 16:9 JPEG still from the watched-folder file, or a designed placeholder if a still cannot be taken. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`.
+`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename", "collection", "artwork" } ] }`. `artwork` is a Nestplay path such as `/library/{id}/artwork`, never a filesystem path. `collection` is the slash-normalized parent folder relative to the watched folder (empty at the root). Apple TV browses that tree (Mateo → PJ Masks) and keeps Next/Previous inside a folder; it is not a Mac path. `GET /library/{id}/artwork` returns a 16:9 JPEG still from the watched-folder file, or a designed placeholder if a still cannot be taken. `GET /library/{id}/media` streams that file with HTTP Range via `ServeContent` so Apple TV can seek. The handler clears the write deadline so JSON `WriteTimeout` does not abort a long body. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`.
 
 `GET /library/events` is a Server-Sent Events stream. Nestplay writes `data: {"changed":true}` when the in-memory catalog snapshot changes; the Apple TV then reloads `GET /library` without reconnecting. Watched-folder paths never appear on this stream. Files already on disk are admitted at startup; new or growing files wait until their size is stable. Hidden names and `*.part` files stay out of the snapshot.
 
@@ -59,7 +59,7 @@ scripts/import-youtube-cookies.sh
 
 That writes a YouTube-only Netscape file to `~/Library/Application Support/nestplay/youtube-cookies.txt`. Pass `safari`, `brave`, or `chrome:Profile 1` as the first argument if needed. Quit the browser if the import cannot open the cookie database. Then restart the Nestplay server. On the Apple TV, **Refresh** loads YouTube Home from the Mac; that shelf stays until you Refresh again. Do not paste cookies into chat, Git, or the tvOS app. You can still place a Cookie header in that same path by hand, or pass `-youtube-cookies`.
 
-Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog with posters and a YouTube Home/search adapter, not a claim that downloads or playback are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
+Other paths return 404 and unsupported methods return 405. This is a liveness check plus a live local catalog with posters, direct play of completed files, and a YouTube Home/search adapter, not a claim that downloads or conversion are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 

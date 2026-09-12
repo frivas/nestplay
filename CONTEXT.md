@@ -17,11 +17,15 @@ _Avoid_: Subscriptions, trending, Shorts, chips, community posts, live feed
 A user-created ordered list of local-library items.
 _Avoid_: YouTube playlist
 
+**Collection**:
+The containing folder of a local-library file, relative to the watched folder. Next, Previous, and auto-advance stay inside a collection and follow filename order.
+_Avoid_: library playlist, YouTube playlist, filesystem path
+
 **Download queue**:
 The selected videos waiting to download or currently downloading; a queued video is not yet a playable library item.
 
 **Watched folder**:
-A folder where the user places movie files for automatic library discovery. A file joins the local library only after it has finished arriving, not while a copy is still growing.
+A folder where the user places movie files for automatic library discovery. Nested directories (for example Mateo → PJ Masks) are how the Apple TV library is browsed. A file joins the local library only after it has finished arriving, not while a copy is still growing.
 
 **Spanish subtitle match**:
 A Spanish subtitle track selected for compatibility and synchronization with a particular video, regardless of Spanish regional variant.

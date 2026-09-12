@@ -3,6 +3,7 @@ package catalog
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,10 +34,10 @@ func TestListFindsVideosAndSkipsOthers(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("got %+v", items)
 	}
-	if items[0].Title != "Pilot" || items[0].Filename != "Pilot.mp4" || items[0].ID == "" {
+	if items[0].Title != "Pilot" || items[0].Filename != "Pilot.mp4" || items[0].ID == "" || items[0].Collection != "shows" {
 		t.Fatalf("nested: %+v", items[0])
 	}
-	if items[1].Title != "The Guest" || items[1].Filename != "The Guest.mkv" {
+	if items[1].Title != "The Guest" || items[1].Filename != "The Guest.mkv" || items[1].Collection != "" {
 		t.Fatalf("root file: %+v", items[1])
 	}
 	file, err := FileForID(root, items[1].ID)
@@ -226,6 +227,28 @@ func TestRewrittenFileStaysVisibleUntilSettled(t *testing.T) {
 	file, err := c.FileByID(c.Items()[0].ID)
 	if err != nil || file.size != 6 {
 		t.Fatalf("settled rewrite: %+v %v", file, err)
+	}
+}
+
+func TestCollectionIsParentFolderNotMacPath(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "Mateo", "PJ Masks", "09 - Gatuno.mp4"), []byte("x"))
+	mustWrite(t, filepath.Join(root, "Mateo", "Simon Castellano", "02 - Gasolinera.mp4"), []byte("x"))
+	items, err := List(root)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("got %+v %v", items, err)
+	}
+	byFile := map[string]Item{}
+	for _, item := range items {
+		byFile[item.Filename] = item
+	}
+	pj := byFile["09 - Gatuno.mp4"]
+	simon := byFile["02 - Gasolinera.mp4"]
+	if pj.Collection != "Mateo/PJ Masks" || simon.Collection != "Mateo/Simon Castellano" {
+		t.Fatalf("collections: %+v", items)
+	}
+	if strings.Contains(pj.Collection, root) || strings.Contains(simon.Collection, root) {
+		t.Fatalf("mac path leaked into collection: %+v", items)
 	}
 }
 

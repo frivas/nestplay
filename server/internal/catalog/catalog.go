@@ -27,9 +27,10 @@ var ErrNotFound = errors.New("catalog item not found")
 // Item is a Nestplay-owned catalog record. It is not a TMDB or filesystem
 // schema: the Apple TV only sees these fields.
 type Item struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Filename string `json:"filename"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Filename   string `json:"filename"`
+	Collection string `json:"collection"`
 }
 
 // File is a Mac-side catalog record. Path must never be encoded on the wire.
@@ -136,6 +137,15 @@ func (c *Catalog) FileByID(id string) (File, error) {
 	return file, nil
 }
 
+func (c *Catalog) broadcastLocked() {
+	for ch := range c.subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
 // Subscribe receives a coalesced signal when the snapshot changes. Call the
 // returned function to unsubscribe.
 func (c *Catalog) Subscribe() (<-chan struct{}, func()) {
@@ -236,12 +246,7 @@ func (c *Catalog) scan(admitAll bool) error {
 		}
 	}
 	if changed {
-		for ch := range c.subs {
-			select {
-			case ch <- struct{}{}:
-			default:
-			}
-		}
+		c.broadcastLocked()
 	}
 	return nil
 }
@@ -336,14 +341,16 @@ func walkFiles(root string) ([]File, error) {
 			return err
 		}
 		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		slashRel := filepath.ToSlash(rel)
 		files = append(files, File{
 			Item: Item{
-				ID:       stableID(rel),
-				Title:    title,
-				Filename: d.Name(),
+				ID:         stableID(rel),
+				Title:      title,
+				Filename:   d.Name(),
+				Collection: collectionOf(slashRel),
 			},
 			Path:  path,
-			rel:   filepath.ToSlash(rel),
+			rel:   slashRel,
 			size:  stat.Size(),
 			mtime: stat.ModTime().UnixNano(),
 			added: addedAt(stat),
@@ -368,6 +375,14 @@ func addedAt(info fs.FileInfo) int64 {
 
 func skipName(name string) bool {
 	return strings.HasPrefix(name, ".")
+}
+
+func collectionOf(slashRel string) string {
+	i := strings.LastIndex(slashRel, "/")
+	if i <= 0 {
+		return ""
+	}
+	return slashRel[:i]
 }
 
 func depth(rel string) int {
