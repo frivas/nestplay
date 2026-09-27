@@ -6,18 +6,22 @@ Nestplay is a private home media library and a way to browse personalized YouTub
 ## Language
 
 **Local library**:
-The completed downloaded videos and movies supplied through a watched folder that are available for playback.
-_Avoid_: YouTube feed
+The completed downloaded videos and movies supplied through a watched folder that are available for playback. Nestplay on Apple TV opens here.
+_Avoid_: YouTube feed, local feed, Home
 
 **YouTube Home**:
-The personalized recommendations associated with the single connected YouTube account, including additional pages of results.
-_Avoid_: Subscriptions, trending
+The personalized recommendations associated with the single connected YouTube account, including additional pages of results. On Apple TV this is landscape recommended videos only, refreshable, with search.
+_Avoid_: Subscriptions, trending, Shorts, chips, community posts, live feed
+
+**Library playlist**:
+A user-created ordered list of local-library items.
+_Avoid_: YouTube playlist
 
 **Download queue**:
 The selected videos waiting to download or currently downloading; a queued video is not yet a playable library item.
 
 **Watched folder**:
-A folder where the user places movie files for automatic library discovery.
+A folder where the user places movie files for automatic library discovery. A file joins the local library only after it has finished arriving, not while a copy is still growing.
 
 **Spanish subtitle match**:
 A Spanish subtitle track selected for compatibility and synchronization with a particular video, regardless of Spanish regional variant.

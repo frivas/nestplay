@@ -52,6 +52,11 @@ check-server: tools
 	cd server && staticcheck ./...
 	mkdir -p .build
 	cd server && go test -race -covermode=atomic -coverprofile=$(CURDIR)/.build/coverage.out ./...
+	@if command -v deno >/dev/null; then \
+		deno test --quiet server/internal/youtube/youtube_items_test.ts; \
+	else \
+		echo "deno not on PATH; skip YouTube adapter unit tests"; \
+	fi
 	mkdir -p $(BUILD_DIR)
 	cd server && go build -trimpath -o ../$(SERVER_BINARY) .
 	cd server && govulncheck -test ./...

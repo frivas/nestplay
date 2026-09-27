@@ -12,7 +12,7 @@ make run
 
 It listens on port 8765. The tvOS PoC checks `http://aquinas.local:8765` by itself. Use the Mac's address, not `localhost`, on a physical Apple TV. If `.local` fails, the fallback is the Mac LAN IP on port 8765.
 
-If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes only a health response, with no media or account data.
+If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health, a read-only local catalog, and YouTube Home/search. Downloads and playback are still deferred.
 
 Optional configuration:
 
@@ -21,7 +21,7 @@ Optional configuration:
 .build/bin/nestplay-server -listen 0.0.0.0:8766
 ```
 
-Stop with Control-C. To rebuild, install Go 1.23 or newer and run `make server`. No third-party Go modules are needed.
+Stop with Control-C. To rebuild, install Go 1.25 or newer and run `make server`. The catalog watcher uses `github.com/fsnotify/fsnotify` and persists the snapshot with `modernc.org/sqlite`.
 
 ## Run the Apple TV app
 
@@ -43,7 +43,23 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 {"service":"nestplay","status":"ok","api_version":1}
 ```
 
-`POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac. Other paths return 404 and unsupported methods return 405. This is a liveness check for the basic server, not a claim that future YouTube, storage or playback dependencies are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
+`POST /debug/log` accepts uncached JSON `{"source":"tvos","level":"info","message":"..."}` and prints it on the Mac.
+
+`GET /library` returns HTTP 200 and uncached JSON `{ "items": [ { "id", "title", "filename", "artwork" } ] }`. `artwork` is a Nestplay path such as `/library/{id}/artwork`, never a filesystem path. `GET /library/{id}/artwork` returns a 16:9 JPEG still from the watched-folder file, or a designed placeholder if a still cannot be taken. An empty or missing watched folder is a valid empty list. Set `library_root` in the config file or pass `-library-root`.
+
+`GET /library/events` is a Server-Sent Events stream. Nestplay writes `data: {"changed":true}` when the in-memory catalog snapshot changes; the Apple TV then reloads `GET /library` without reconnecting. Watched-folder paths never appear on this stream. Files already on disk are admitted at startup; new or growing files wait until their size is stable. Hidden names and `*.part` files stay out of the snapshot.
+
+`GET /youtube/status`, `GET /youtube/home`, and `GET /youtube/search?q=` return uncached JSON `{ "state", "message?", "items", "cursor?" }`. `state` is `connected`, `reconnect_required`, or `unavailable`. Items are landscape recommended videos `{ "id", "title", "artwork" }` with Nestplay artwork paths `/youtube/{id}/artwork`. Pass `cursor` for the next page. The Apple TV never receives cookies, YouTube.js records, or filesystem paths. If the YouTube session is missing or rejected, Nestplay says reconnect is required and does not invent generic recommendations; the local library stays available.
+
+YouTube cookies stay on the Mac. From the repo root, with **Chrome signed in to youtube.com** (the browser whose Home shows recommendations):
+
+```sh
+scripts/import-youtube-cookies.sh
+```
+
+That writes a YouTube-only Netscape file to `~/Library/Application Support/nestplay/youtube-cookies.txt`. Pass `safari`, `brave`, or `chrome:Profile 1` as the first argument if needed. Quit the browser if the import cannot open the cookie database. Then restart the Nestplay server. On the Apple TV, **Refresh** loads YouTube Home from the Mac; that shelf stays until you Refresh again. Do not paste cookies into chat, Git, or the tvOS app. You can still place a Cookie header in that same path by hand, or pass `-youtube-cookies`.
+
+Other paths return 404 and unsupported methods return 405. This is a liveness check plus a read-only filename catalog with posters and a YouTube Home/search adapter, not a claim that downloads or playback are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 
@@ -53,7 +69,7 @@ The PoC address is fixed. The app displays ready, checking, connected and failur
 - `docs/architecture.md`: ownership boundaries and dependency rules for future increments.
 - `docs/research/`: architecture and component research.
 
-Perch, Jellyfin and YouTube packages are not dependencies of this first milestone.
+Perch, Jellyfin and yt-dlp are not dependencies of this milestone. YouTube.js runs through a replaceable Deno adapter on the Mac.
 
 ## Developer checks
 
