@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"nestplay.local/server/internal/catalog"
+	"nestplay.local/server/internal/downloads"
 	"nestplay.local/server/internal/youtube"
 )
 
@@ -234,7 +235,7 @@ func TestLibraryMediaRange(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("catalog: %+v", items)
 	}
-	h := nestplayHandler(cat, youtube.Disabled())
+	h := nestplayHandler(cat, youtube.Disabled(), nil)
 	srv := httptest.NewUnstartedServer(h)
 	srv.Config.WriteTimeout = 80 * time.Millisecond
 	srv.Start()
@@ -291,7 +292,7 @@ func TestLibraryMediaRange(t *testing.T) {
 func TestLibraryEventsSignalsChange(t *testing.T) {
 	root := t.TempDir()
 	cat := mustCatalog(t, root)
-	srv := httptest.NewServer(nestplayHandler(cat, youtube.Disabled()))
+	srv := httptest.NewServer(nestplayHandler(cat, youtube.Disabled(), nil))
 	t.Cleanup(srv.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -404,7 +405,7 @@ func TestYouTubeJSON(t *testing.T) {
 				},
 			},
 		}
-		h := nestplayHandler(mustCatalog(t, ""), fake)
+		h := nestplayHandler(mustCatalog(t, ""), fake, nil)
 		home := httptest.NewRecorder()
 		h.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/youtube/home", nil))
 		var first struct {
@@ -434,4 +435,37 @@ func TestYouTubeJSON(t *testing.T) {
 			t.Fatalf("artwork status = %d", missing.Code)
 		}
 	})
+}
+
+func TestQueueEnqueueListsWithoutPaths(t *testing.T) {
+	root := t.TempDir()
+	q := downloads.Open(root, t.TempDir(), nil, nil, nil)
+	h := nestplayHandler(mustCatalog(t, root), youtube.Disabled(), q)
+	post := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/queue", strings.NewReader(
+		`{"items":[{"id":"dQw4w9WgXcQ","title":"Heat"}]}`))
+	h.ServeHTTP(post, req)
+	if post.Code != http.StatusOK {
+		t.Fatalf("status = %d", post.Code)
+	}
+	if strings.Contains(post.Body.String(), root) {
+		t.Fatal("path leaked")
+	}
+	var body struct {
+		Items []struct {
+			ID    string `json:"id"`
+			State string `json:"state"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(post.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ID != "dQw4w9WgXcQ" || body.Items[0].State != "queued" {
+		t.Fatalf("%+v", body.Items)
+	}
+	get := httptest.NewRecorder()
+	h.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/queue", nil))
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), "dQw4w9WgXcQ") {
+		t.Fatalf("get %s", get.Body.String())
+	}
 }

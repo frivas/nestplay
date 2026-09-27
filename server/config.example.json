@@ -1,5 +1,7 @@
 {
   "listen": "0.0.0.0:8765",
   "library_root": "",
-  "youtube_cookies": ""
+  "youtube_cookies": "",
+  "yt_dlp": "/opt/homebrew/Caskroom/miniconda/base/envs/ytdlp/bin/yt-dlp",
+  "ffmpeg": "/opt/homebrew/bin"
 }

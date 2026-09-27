@@ -12,14 +12,17 @@ make run
 
 It listens on port 8765. The tvOS PoC checks `http://aquinas.local:8765` by itself. Use the Mac's address, not `localhost`, on a physical Apple TV. If `.local` fails, the fallback is the Mac LAN IP on port 8765.
 
-If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health, a live local catalog, YouTube Home/search, and direct play of completed local-library files. Downloads and conversion are still deferred.
+If macOS asks about incoming connections, allow the server for this LAN test. Both devices must be on the same network and the Mac must remain awake. No port forwarding is needed. This milestone exposes health, a live local catalog, YouTube Home/search, direct play of completed local-library files, and a YouTube download queue that publishes only Living Room–playable files.
 
 Optional configuration:
 
 ```sh
 .build/bin/nestplay-server -config server/config.example.json
 .build/bin/nestplay-server -listen 0.0.0.0:8766
+.build/bin/nestplay-server -yt-dlp /opt/homebrew/Caskroom/miniconda/base/envs/ytdlp/bin/yt-dlp -ffmpeg /opt/homebrew/bin
 ```
+
+yt-dlp defaults to that conda env binary; ffmpeg and ffprobe default to `/opt/homebrew/bin`. Pass `-yt-dlp` / `-ffmpeg` or set `yt_dlp` and `ffmpeg` in the config file to override.
 
 Stop with Control-C. To rebuild, install Go 1.25 or newer and run `make server`. The catalog watcher uses `github.com/fsnotify/fsnotify` and persists the snapshot with `modernc.org/sqlite`.
 
@@ -59,7 +62,9 @@ scripts/import-youtube-cookies.sh
 
 That writes a YouTube-only Netscape file to `~/Library/Application Support/nestplay/youtube-cookies.txt`. Pass `safari`, `brave`, or `chrome:Profile 1` as the first argument if needed. Quit the browser if the import cannot open the cookie database. Then restart the Nestplay server. On the Apple TV, **Refresh** loads YouTube Home from the Mac; that shelf stays until you Refresh again. Do not paste cookies into chat, Git, or the tvOS app. You can still place a Cookie header in that same path by hand, or pass `-youtube-cookies`.
 
-Other paths return 404 and unsupported methods return 405. This is a liveness check plus a live local catalog with posters, direct play of completed files, and a YouTube Home/search adapter, not a claim that downloads or conversion are ready. This debug ingest is unauthenticated LAN-only PoC tracing.
+`GET /queue` and `POST /queue` are the download queue. `POST /queue` accepts uncached JSON `{ "items": [ { "id", "title" } ] }` of YouTube video ids. Invalid ids are ignored. `GET /queue` returns `{ "items": [ { "id", "title", "state", "message?" } ] }`. `state` is `queued`, `downloading`, `converting`, `waiting_space`, `too_low`, `failed`, or `complete`. Watched-folder paths never appear. yt-dlp fetches at least 720p (preferring 1080p H.264 when YouTube has it); ffmpeg writes 1080p-or-source H.264+AAC MP4 into the watched folder (`-library-root`). Scratch files stay in `.nestplay-work` under that folder (skipped by the catalog) and are deleted after each job; leftover `.mp4.part` files and the work directory are removed when the server starts. Below 720p is not downloaded. Unplayable intermediates stay out of `GET /library`. Local library listings omit files Living Room cannot draw until ffmpeg replaces them in place.
+
+Other paths return 404 and unsupported methods return 405. This is a liveness check plus a live local catalog with posters, direct play of completed files, a YouTube Home/search adapter, and a download queue that only admits Apple TV–playable files. This debug ingest is unauthenticated LAN-only PoC tracing.
 
 ## Structure
 
@@ -69,7 +74,7 @@ Other paths return 404 and unsupported methods return 405. This is a liveness ch
 - `docs/architecture.md`: ownership boundaries and dependency rules for future increments.
 - `docs/research/`: architecture and component research.
 
-Perch, Jellyfin and yt-dlp are not dependencies of this milestone. YouTube.js runs through a replaceable Deno adapter on the Mac.
+Perch, Jellyfin are not dependencies of this milestone. yt-dlp and ffmpeg run as off-process writers on the Mac. YouTube.js runs through a replaceable Deno adapter.
 
 ## Developer checks
 

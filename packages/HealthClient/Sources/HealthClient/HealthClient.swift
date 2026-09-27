@@ -160,6 +160,50 @@ public struct HealthClient: Sendable {
     return try await youtube(address: address, path: "/youtube/search", query: fields)
   }
 
+  public func enqueue(address: String, items: [YouTubeItem]) async throws -> DownloadQueue {
+    let endpoint = try nestplayEndpoint(address: address, path: "/queue")
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "POST"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    let body = DownloadQueue(
+      items: items.map { DownloadItem(id: $0.id, title: $0.title, state: "queued", message: nil) })
+    request.httpBody = try JSONEncoder().encode(body)
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let queue = try? JSONDecoder().decode(DownloadQueue.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return queue
+  }
+
+  public func queue(address: String) async throws -> DownloadQueue {
+    let endpoint = try nestplayEndpoint(address: address, path: "/queue")
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "GET"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let queue = try? JSONDecoder().decode(DownloadQueue.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return queue
+  }
+
   private func youtube(address: String, path: String, query: [String: String] = [:]) async throws
     -> YouTubePage
   {
@@ -301,10 +345,21 @@ public struct YouTubePage: Decodable, Sendable, Equatable {
   }
 }
 
-public struct YouTubeItem: Decodable, Sendable, Equatable, Identifiable {
+public struct YouTubeItem: Decodable, Encodable, Sendable, Equatable, Identifiable {
   public let id: String
   public let title: String
   public let artwork: String
+}
+
+public struct DownloadItem: Codable, Sendable, Equatable, Identifiable {
+  public let id: String
+  public let title: String
+  public let state: String
+  public let message: String?
+}
+
+public struct DownloadQueue: Codable, Sendable, Equatable {
+  public let items: [DownloadItem]
 }
 
 func libraryEventSignalsChange(_ line: String) -> Bool {

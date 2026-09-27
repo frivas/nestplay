@@ -252,6 +252,31 @@ func TestCollectionIsParentFolderNotMacPath(t *testing.T) {
 	}
 }
 
+func TestSetVisibleHidesUnplayableFromItems(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "play.mp4"), []byte("a"))
+	mustWrite(t, filepath.Join(root, "hide.mp4"), []byte("b"))
+	cat, err := OpenImmediate(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cat.Close() })
+	cat.SetVisible(func(path string) bool {
+		return filepath.Base(path) == "play.mp4"
+	})
+	items := cat.Items()
+	if len(items) != 1 || items[0].Filename != "play.mp4" {
+		t.Fatalf("%+v", items)
+	}
+	if _, err := cat.FileByID(items[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	hidden := cat.Hidden()
+	if len(hidden) != 1 || hidden[0].Item.Filename != "hide.mp4" {
+		t.Fatalf("%+v", hidden)
+	}
+}
+
 func mustWrite(t *testing.T, path string, data []byte) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

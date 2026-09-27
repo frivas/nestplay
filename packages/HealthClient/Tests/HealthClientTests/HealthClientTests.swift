@@ -200,3 +200,19 @@ private struct OfflineTransport: HealthTransport {
   #expect(page.state == "reconnect_required")
   #expect(page.items.isEmpty)
 }
+
+@Test func enqueuesYouTubeItemsOnQueueEndpoint() async throws {
+  let transport = StubTransport(
+    body:
+      "{\"items\":[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"Heat\",\"state\":\"queued\"}]}"
+  )
+  let queued = try await HealthClient(transport: transport).enqueue(
+    address: "http://mac.local",
+    items: [YouTubeItem(id: "dQw4w9WgXcQ", title: "Heat", artwork: "/youtube/dQw4w9WgXcQ/artwork")]
+  )
+  #expect(queued.items.count == 1)
+  #expect(queued.items[0].id == "dQw4w9WgXcQ")
+  let request = await transport.request
+  #expect(request?.url?.absoluteString == "http://mac.local/queue")
+  #expect(request?.httpMethod == "POST")
+}

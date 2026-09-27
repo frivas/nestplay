@@ -12,6 +12,9 @@ struct YouTubeHomeView: View {
   @State private var query = ""
   @State private var homeLoading = false
   @State private var searchLoading = false
+  @State private var showingQueue = false
+  @State private var queueItems: [DownloadItem] = []
+  @State private var hideFinishedBanner = true
   @FocusState private var chromeFocus: ChromeFocus?
 
   private enum ChromeFocus: Hashable {
@@ -19,6 +22,7 @@ struct YouTubeHomeView: View {
     case search
     case close
     case find
+    case downloads
   }
 
   private var page: YouTubePage { searching ? searchPage : homePage }
@@ -27,6 +31,25 @@ struct YouTubeHomeView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
       chrome
+      ZStack(alignment: .topTrailing) {
+        shelf
+        queueBanner
+      }
+    }
+    .padding(.horizontal, 72)
+    .padding(.top, 28)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .accessibilityIdentifier("youtubeHomeSurface")
+    .task { await loadShelf() }
+    .task { await pollQueue() }
+    .onChange(of: queueSignature) { _, _ in
+      scheduleFinishedBanner()
+    }
+    .modifier(SearchExitModifier(enabled: searching, close: closeSearch))
+  }
+
+  private var shelf: some View {
+    VStack(alignment: .leading, spacing: 24) {
       if loading && page.items.isEmpty {
         ProgressView().tint(NestEgg.cream)
       }
@@ -54,6 +77,9 @@ struct YouTubeHomeView: View {
           artwork: { $0.artwork },
           onMoveUpFromTopRow: {
             chromeFocus = searching ? .close : .refresh
+          },
+          onSelect: { item in
+            Task { await enqueue(item) }
           }
         ) {
           if let cursor = page.cursor, !cursor.isEmpty {
@@ -67,12 +93,46 @@ struct YouTubeHomeView: View {
         }
       }
     }
-    .padding(.horizontal, 72)
-    .padding(.top, 28)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .accessibilityIdentifier("youtubeHomeSurface")
-    .task { await loadShelf() }
-    .modifier(SearchExitModifier(enabled: searching, close: closeSearch))
+  }
+
+  private var queueSignature: String {
+    queueItems.map { "\($0.id):\($0.state)" }.joined(separator: "|")
+  }
+
+  private var hasActiveWork: Bool {
+    queueItems.contains { DownloadQueueBanner.activeStates.contains($0.state) }
+  }
+
+  private var bannerItems: [DownloadItem] {
+    if showingQueue {
+      return Array(queueItems.suffix(4))
+    }
+    if hasActiveWork {
+      return queueItems.filter { DownloadQueueBanner.activeStates.contains($0.state) }
+    }
+    if hideFinishedBanner {
+      return []
+    }
+    return Array(queueItems.suffix(2))
+  }
+
+  @ViewBuilder
+  private var queueBanner: some View {
+    if showingQueue || !bannerItems.isEmpty {
+      DownloadQueueBanner(
+        items: bannerItems,
+        emptyMessage: showingQueue && queueItems.isEmpty
+          ? "Select a video to download it into Local library."
+          : nil
+      )
+      .padding(.top, 8)
+      .allowsHitTesting(false)
+      .accessibilityElement(children: .combine)
+      .accessibilityIdentifier("youtubeDownloadQueue")
+      .transition(.opacity.combined(with: .move(edge: .trailing)))
+      .animation(.easeOut(duration: 0.22), value: queueSignature)
+    }
   }
 
   private var chrome: some View {
@@ -99,6 +159,18 @@ struct YouTubeHomeView: View {
         .focused($chromeFocus, equals: .close)
       } else {
         NestChromeButton(
+          title: queueLabel,
+          kind: .more,
+          accessibilityID: "youtubeDownloads"
+        ) {
+          showingQueue.toggle()
+          if showingQueue {
+            hideFinishedBanner = false
+            Task { await loadQueue() }
+          }
+        }
+        .focused($chromeFocus, equals: .downloads)
+        NestChromeButton(
           title: "Refresh",
           kind: .refresh,
           enabled: !homeLoading,
@@ -118,6 +190,13 @@ struct YouTubeHomeView: View {
         .focused($chromeFocus, equals: .search)
       }
     }
+  }
+
+  private var queueLabel: String {
+    if queueItems.isEmpty {
+      return "Downloads"
+    }
+    return "Downloads (\(queueItems.count))"
   }
 
   private var searchField: some View {
@@ -151,6 +230,53 @@ struct YouTubeHomeView: View {
     searchPage = YouTubePage(state: "connected", message: nil, items: [], cursor: nil)
     if homePage.items.isEmpty {
       Task { await loadShelf() }
+    }
+  }
+
+  private func enqueue(_ item: YouTubeItem) async {
+    hideFinishedBanner = false
+    do {
+      queueItems = try await HealthClient().enqueue(address: server, items: [item]).items
+    } catch {
+      showingQueue = true
+    }
+  }
+
+  private func pollQueue() async {
+    await loadQueue()
+    while !Task.isCancelled {
+      do {
+        try await Task.sleep(for: .seconds(2))
+      } catch {
+        return
+      }
+      await loadQueue()
+    }
+  }
+
+  private func scheduleFinishedBanner() {
+    if hasActiveWork {
+      hideFinishedBanner = false
+      return
+    }
+    guard !queueItems.isEmpty else {
+      hideFinishedBanner = true
+      return
+    }
+    hideFinishedBanner = false
+    Task {
+      try? await Task.sleep(for: .seconds(4))
+      if !hasActiveWork && !showingQueue {
+        hideFinishedBanner = true
+      }
+    }
+  }
+
+  private func loadQueue() async {
+    do {
+      queueItems = try await HealthClient().queue(address: server).items
+    } catch {
+      return
     }
   }
 
@@ -236,6 +362,95 @@ struct YouTubeHomeView: View {
       } else {
         homePage = failed
       }
+    }
+  }
+}
+
+private struct DownloadQueueBanner: View {
+  static let activeStates: Set<String> = [
+    "queued", "downloading", "converting", "waiting_space",
+  ]
+
+  let items: [DownloadItem]
+  var emptyMessage: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      if let emptyMessage, items.isEmpty {
+        Text(emptyMessage)
+          .font(.headline)
+          .foregroundStyle(NestEgg.cream.opacity(0.82))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      ForEach(items) { item in
+        HStack(alignment: .center, spacing: 16) {
+          Image(systemName: symbol(for: item.state))
+            .font(.title2)
+            .foregroundStyle(accent(for: item.state))
+            .frame(width: 36)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(item.title)
+              .font(.headline)
+              .foregroundStyle(NestEgg.cream)
+              .lineLimit(1)
+              .truncationMode(.tail)
+            Text(label(for: item))
+              .font(.subheadline)
+              .foregroundStyle(NestEgg.mist)
+              .lineLimit(2)
+          }
+        }
+      }
+    }
+    .padding(.horizontal, 22)
+    .padding(.vertical, 18)
+    .frame(width: 520, alignment: .leading)
+    .background {
+      RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .fill(.thickMaterial)
+        .overlay {
+          RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(NestEgg.teal.opacity(0.42))
+        }
+        .overlay {
+          RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .strokeBorder(NestEgg.cream.opacity(0.12), lineWidth: 1)
+        }
+    }
+    .shadow(color: NestEgg.stage.opacity(0.45), radius: 18, y: 8)
+  }
+
+  private func symbol(for state: String) -> String {
+    switch state {
+    case "queued": "hourglass"
+    case "downloading": "arrow.down.circle.fill"
+    case "converting": "gearshape.fill"
+    case "waiting_space": "externaldrive.fill.badge.exclamationmark"
+    case "too_low": "arrow.down.to.line"
+    case "failed": "xmark.circle.fill"
+    case "complete": "checkmark.circle.fill"
+    default: "arrow.down.circle"
+    }
+  }
+
+  private func accent(for state: String) -> Color {
+    switch state {
+    case "failed", "too_low": NestEgg.ember
+    case "complete": NestEgg.mist
+    default: NestEgg.cream
+    }
+  }
+
+  private func label(for item: DownloadItem) -> String {
+    switch item.state {
+    case "queued": "Queued"
+    case "downloading": "Downloading"
+    case "converting": "Making playable"
+    case "waiting_space": item.message ?? "Waiting for space"
+    case "too_low": item.message ?? "Below 720p"
+    case "failed": item.message ?? "Could not download"
+    case "complete": "In Local library"
+    default: item.state
     }
   }
 }
