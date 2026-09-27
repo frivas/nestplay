@@ -6,6 +6,7 @@ struct ConnectionView: View {
   @State private var address = PocServer.address
   @State private var state: ConnectionState = .ready
   @State private var catalog: [CatalogItem] = []
+  @State private var folder: [String] = []
   @State private var catalogMessage = ""
   @State private var surface: Surface = .localLibrary
   @State private var checkTask: Task<Void, Never>?
@@ -51,6 +52,7 @@ struct ConnectionView: View {
         address = PocServer.address
       }
       trace("info", "launch address=\(address)")
+      if case .connected = state { return }
       check()
     }
     .onDisappear {
@@ -106,11 +108,17 @@ struct ConnectionView: View {
         try? await Task.sleep(for: .seconds(2))
       }
     }
+    .onExitCommand {}
   }
 
   private var localLibraryTab: some View {
     VStack(alignment: .leading, spacing: 24) {
       HStack(alignment: .center, spacing: 24) {
+        if !folder.isEmpty {
+          NestChromeButton(title: "Back", kind: .close, accessibilityID: "libraryBack") {
+            folder.removeLast()
+          }
+        }
         Text("NESTPLAY")
           .font(.system(size: 22, weight: .semibold))
           .tracking(6)
@@ -121,7 +129,8 @@ struct ConnectionView: View {
           .foregroundStyle(NestEgg.cream.opacity(0.8))
           .accessibilityIdentifier("connectionStatus")
       }
-      LocalLibraryShelf(items: catalog, server: address, emptyMessage: catalogMessage)
+      LocalLibraryShelf(
+        items: catalog, server: address, emptyMessage: catalogMessage, folder: $folder)
     }
     .padding(.horizontal, 72)
     .padding(.top, 28)
@@ -173,11 +182,13 @@ struct ConnectionView: View {
   }
   private func check() {
     guard !checking else { return }
+    if case .connected = state { return }
     checkTask?.cancel()
     let submitted = address
     state = .checking
     surface = .localLibrary
     catalog = []
+    folder = []
     catalogMessage = ""
     trace("info", "check started address=\(submitted)")
     checkTask = Task { @MainActor in

@@ -95,18 +95,64 @@ private struct OfflineTransport: HealthTransport {
   #expect(!libraryEventSignalsChange("event: changed"))
 }
 
+@Test func buildsLibraryMediaURL() throws {
+  let url = try HealthClient().mediaURL(address: "http://mac.local:8765", id: "abc")
+  #expect(url.absoluteString == "http://mac.local:8765/library/abc/media")
+}
+
 @Test func loadsLibraryFromEndpoint() async throws {
   let transport = StubTransport(
     body:
-      "{\"items\":[{\"id\":\"abc\",\"title\":\"Heat\",\"filename\":\"Heat.mkv\",\"artwork\":\"/library/abc/artwork\"}]}"
+      "{\"items\":[{\"id\":\"abc\",\"title\":\"Heat\",\"filename\":\"Heat.mkv\",\"collection\":\"\",\"artwork\":\"/library/abc/artwork\"}]}"
   )
   let library = try await HealthClient(transport: transport).library(address: "http://mac.local")
   #expect(library.items.count == 1)
   #expect(library.items[0].title == "Heat")
+  #expect(library.items[0].collection == "")
   #expect(library.items[0].artwork == "/library/abc/artwork")
   let request = await transport.request
   #expect(request?.url?.absoluteString == "http://mac.local/library")
   #expect(request?.httpMethod == "GET")
+}
+
+@Test func ordersPlaybackQueueByFilenameInTheSameCollection() {
+  let items = [
+    CatalogItem(
+      id: "11", title: "11", filename: "11 - B.mp4", artwork: "/a", collection: "Mateo/PJ Masks"),
+    CatalogItem(
+      id: "09", title: "09", filename: "09 - A.mp4", artwork: "/a", collection: "Mateo/PJ Masks"),
+    CatalogItem(
+      id: "simon", title: "Simon", filename: "02 - C.mp4", artwork: "/a",
+      collection: "Mateo/Simon Castellano"),
+  ]
+  #expect(libraryPlaybackQueue(items: items, playing: "11").map(\.id) == ["09", "11"])
+  #expect(libraryPlaybackQueue(items: items, playing: "missing").isEmpty)
+}
+
+@Test func browsesWatchedFolderTreeFromCollection() {
+  let items = [
+    CatalogItem(
+      id: "09", title: "09", filename: "09.mp4", artwork: "/library/09/artwork",
+      collection: "Mateo/PJ Masks"),
+    CatalogItem(
+      id: "simon", title: "Simon", filename: "02.mp4", artwork: "/library/simon/artwork",
+      collection: "Mateo/Simon Castellano"),
+    CatalogItem(
+      id: "lim", title: "Limitless", filename: "E01.mkv", artwork: "/library/lim/artwork",
+      collection: "Limitless with Chris Hemsworth S01"),
+    CatalogItem(id: "root", title: "Loose", filename: "Loose.mp4", artwork: "/a", collection: ""),
+  ]
+  let root = libraryBrowse(items: items, path: "")
+  #expect(root.folders.map(\.name) == ["Limitless with Chris Hemsworth S01", "Mateo"])
+  #expect(root.folders.map(\.artwork) == ["/library/lim/artwork", "/library/simon/artwork"])
+  #expect(root.files.map(\.id) == ["root"])
+  let mateo = libraryBrowse(items: items, path: "Mateo")
+  #expect(mateo.folders.map(\.name) == ["PJ Masks", "Simon Castellano"])
+  #expect(mateo.folders.map(\.artwork) == ["/library/09/artwork", "/library/simon/artwork"])
+  #expect(mateo.files.isEmpty)
+  let pj = libraryBrowse(items: items, path: "Mateo/PJ Masks")
+  #expect(pj.folders.isEmpty)
+  #expect(pj.files.map(\.id) == ["09"])
 }
 
 @Test func loadsYouTubeHomeFromEndpoint() async throws {
@@ -153,4 +199,20 @@ private struct OfflineTransport: HealthTransport {
   let page = try await HealthClient(transport: transport).youtubeStatus(address: "http://mac.local")
   #expect(page.state == "reconnect_required")
   #expect(page.items.isEmpty)
+}
+
+@Test func enqueuesYouTubeItemsOnQueueEndpoint() async throws {
+  let transport = StubTransport(
+    body:
+      "{\"items\":[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"Heat\",\"state\":\"queued\"}]}"
+  )
+  let queued = try await HealthClient(transport: transport).enqueue(
+    address: "http://mac.local",
+    items: [YouTubeItem(id: "dQw4w9WgXcQ", title: "Heat", artwork: "/youtube/dQw4w9WgXcQ/artwork")]
+  )
+  #expect(queued.items.count == 1)
+  #expect(queued.items[0].id == "dQw4w9WgXcQ")
+  let request = await transport.request
+  #expect(request?.url?.absoluteString == "http://mac.local/queue")
+  #expect(request?.httpMethod == "POST")
 }

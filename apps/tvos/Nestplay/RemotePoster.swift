@@ -73,16 +73,66 @@ private struct NestChromeButtonBody: View {
   }
 }
 
+struct FolderPoster: View {
+  let title: String
+  let artwork: String
+  let server: String
+  let onSelect: () -> Void
+
+  var body: some View {
+    Button(action: onSelect) {
+      RemoteStill(artwork: artwork, server: server, placeholderSymbol: "folder.fill")
+        .frame(maxWidth: .infinity)
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .overlay {
+          LinearGradient(
+            stops: [
+              .init(color: .clear, location: 0.42),
+              .init(color: NestEgg.stage.opacity(0.88), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+        }
+        .overlay(alignment: .topLeading) {
+          Image(systemName: "folder.fill")
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(NestEgg.gold)
+            .padding(10)
+            .background(NestEgg.stage.opacity(0.62), in: Circle())
+            .padding(.leading, 28)
+            .padding(.top, 20)
+        }
+        .overlay(alignment: .bottomLeading) {
+          Text(title)
+            .font(.headline)
+            .foregroundStyle(NestEgg.cream)
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+            .shadow(color: .black.opacity(0.55), radius: 6, y: 1)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .clipped()
+    }
+    .buttonStyle(.card)
+    .tint(NestEgg.gold)
+    .accessibilityLabel(title)
+  }
+}
+
 struct RemotePoster: View {
   let title: String
   let artwork: String
   let server: String
   var onMoveUp: (() -> Void)? = nil
+  var onSelect: (() -> Void)? = nil
 
   var body: some View {
-    Button(action: {}) {
+    Button(action: { onSelect?() }) {
       VStack(alignment: .leading, spacing: 14) {
-        poster
+        RemoteStill(artwork: artwork, server: server)
           .frame(maxWidth: .infinity)
           .aspectRatio(16 / 9, contentMode: .fit)
           .clipped()
@@ -92,6 +142,7 @@ struct RemotePoster: View {
           .lineLimit(2)
           .multilineTextAlignment(.leading)
           .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 8)
       }
     }
     .buttonStyle(.card)
@@ -103,7 +154,20 @@ struct RemotePoster: View {
     .accessibilityLabel(title)
   }
 
-  @ViewBuilder private var poster: some View {
+}
+
+struct RemoteStill: View {
+  let artwork: String
+  let server: String
+  var placeholderSymbol: String = "play.fill"
+
+  var body: some View {
+    still
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .clipped()
+  }
+
+  @ViewBuilder private var still: some View {
     if let url = artworkURL {
       AsyncImage(url: url) { phase in
         switch phase {
@@ -133,13 +197,14 @@ struct RemotePoster: View {
         startPoint: .top,
         endPoint: .bottom
       )
-      Image(systemName: "play.fill")
+      Image(systemName: placeholderSymbol)
         .font(.system(size: 36, weight: .semibold))
-        .foregroundStyle(NestEgg.cream)
+        .foregroundStyle(placeholderSymbol == "folder.fill" ? NestEgg.gold : NestEgg.cream)
     }
   }
 
   private var artworkURL: URL? {
+    guard !artwork.isEmpty else { return nil }
     let base = server.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     let path = artwork.hasPrefix("/") ? artwork : "/" + artwork
     return URL(string: base + path)
@@ -154,6 +219,8 @@ struct PosterGrid<Item: Identifiable, Footer: View>: View {
   let artwork: (Item) -> String
   var footer: Footer
   var onMoveUpFromTopRow: (() -> Void)?
+  var onSelect: ((Item) -> Void)?
+  var scrolls: Bool = true
 
   init(
     items: [Item],
@@ -162,6 +229,8 @@ struct PosterGrid<Item: Identifiable, Footer: View>: View {
     title: @escaping (Item) -> String,
     artwork: @escaping (Item) -> String,
     onMoveUpFromTopRow: (() -> Void)? = nil,
+    onSelect: ((Item) -> Void)? = nil,
+    scrolls: Bool = true,
     @ViewBuilder footer: () -> Footer
   ) {
     self.items = items
@@ -170,6 +239,8 @@ struct PosterGrid<Item: Identifiable, Footer: View>: View {
     self.title = title
     self.artwork = artwork
     self.onMoveUpFromTopRow = onMoveUpFromTopRow
+    self.onSelect = onSelect
+    self.scrolls = scrolls
     self.footer = footer()
   }
 
@@ -180,25 +251,34 @@ struct PosterGrid<Item: Identifiable, Footer: View>: View {
   ]
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 28) {
-        LazyVGrid(columns: columns, spacing: 56) {
-          ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-            RemotePoster(
-              title: title(item),
-              artwork: artwork(item),
-              server: server,
-              onMoveUp: index < columns.count ? onMoveUpFromTopRow : nil
-            )
-          }
-        }
-        footer
+    Group {
+      if scrolls {
+        ScrollView { grid }
+      } else {
+        grid
       }
-      .padding(.horizontal, 24)
-      .padding(.vertical, 28)
-      .padding(.bottom, 80)
     }
     .focusSection()
     .accessibilityIdentifier(catalogID)
+  }
+
+  private var grid: some View {
+    VStack(alignment: .leading, spacing: 28) {
+      LazyVGrid(columns: columns, spacing: 56) {
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+          RemotePoster(
+            title: title(item),
+            artwork: artwork(item),
+            server: server,
+            onMoveUp: index < columns.count ? onMoveUpFromTopRow : nil,
+            onSelect: { onSelect?(item) }
+          )
+        }
+      }
+      footer
+    }
+    .padding(.horizontal, 24)
+    .padding(.vertical, 28)
+    .padding(.bottom, 80)
   }
 }

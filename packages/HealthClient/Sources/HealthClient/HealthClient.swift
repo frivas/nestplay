@@ -115,6 +115,10 @@ public struct HealthClient: Sendable {
     }
   }
 
+  public func mediaURL(address: String, id: String) throws -> URL {
+    try nestplayEndpoint(address: address, path: "/library/\(id)/media")
+  }
+
   public func library(address: String) async throws -> Catalog {
     let endpoint = try nestplayEndpoint(address: address, path: "/library")
     var request = URLRequest(url: endpoint)
@@ -156,6 +160,50 @@ public struct HealthClient: Sendable {
     return try await youtube(address: address, path: "/youtube/search", query: fields)
   }
 
+  public func enqueue(address: String, items: [YouTubeItem]) async throws -> DownloadQueue {
+    let endpoint = try nestplayEndpoint(address: address, path: "/queue")
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "POST"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    let body = DownloadQueue(
+      items: items.map { DownloadItem(id: $0.id, title: $0.title, state: "queued", message: nil) })
+    request.httpBody = try JSONEncoder().encode(body)
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let queue = try? JSONDecoder().decode(DownloadQueue.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return queue
+  }
+
+  public func queue(address: String) async throws -> DownloadQueue {
+    let endpoint = try nestplayEndpoint(address: address, path: "/queue")
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "GET"
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    let data: Data
+    let response: URLResponse
+    do { (data, response) = try await transport.load(request) } catch is CancellationError {
+      throw CancellationError()
+    } catch { throw HealthError.unavailable }
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+      let queue = try? JSONDecoder().decode(DownloadQueue.self, from: data)
+    else {
+      throw HealthError.invalidResponse
+    }
+    return queue
+  }
+
   private func youtube(address: String, path: String, query: [String: String] = [:]) async throws
     -> YouTubePage
   {
@@ -183,11 +231,103 @@ public struct Catalog: Decodable, Sendable, Equatable {
   public let items: [CatalogItem]
 }
 
+public struct LibraryFolder: Sendable, Equatable, Identifiable {
+  public var id: String { path }
+  public let name: String
+  public let path: String
+  public let artwork: String
+
+  public init(name: String, path: String, artwork: String = "") {
+    self.name = name
+    self.path = path
+    self.artwork = artwork
+  }
+}
+
+public struct LibraryBrowse: Sendable, Equatable {
+  public let folders: [LibraryFolder]
+  public let files: [CatalogItem]
+}
+
 public struct CatalogItem: Decodable, Sendable, Equatable, Identifiable {
   public let id: String
   public let title: String
   public let filename: String
   public let artwork: String
+  public let collection: String
+
+  public init(
+    id: String, title: String, filename: String, artwork: String, collection: String = ""
+  ) {
+    self.id = id
+    self.title = title
+    self.filename = filename
+    self.artwork = artwork
+    self.collection = collection
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case id, title, filename, artwork, collection
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    title = try container.decode(String.self, forKey: .title)
+    filename = try container.decode(String.self, forKey: .filename)
+    artwork = try container.decode(String.self, forKey: .artwork)
+    collection = try container.decodeIfPresent(String.self, forKey: .collection) ?? ""
+  }
+}
+
+public func libraryPlaybackQueue(items: [CatalogItem], playing id: String) -> [CatalogItem] {
+  guard let current = items.first(where: { $0.id == id }) else { return [] }
+  return items.filter { $0.collection == current.collection }
+    .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
+}
+
+public func libraryBrowse(items: [CatalogItem], path: String) -> LibraryBrowse {
+  let prefix = path.isEmpty ? "" : path + "/"
+  var covers: [String: CatalogItem] = [:]
+  var files: [CatalogItem] = []
+  for item in items {
+    if path.isEmpty {
+      if item.collection.isEmpty {
+        files.append(item)
+      } else if let name = item.collection.split(separator: "/", maxSplits: 1).first {
+        rememberFolderCover(&covers, name: String(name), item: item)
+      }
+      continue
+    }
+    if item.collection == path {
+      files.append(item)
+    } else if item.collection.hasPrefix(prefix) {
+      let rest = item.collection.dropFirst(prefix.count)
+      if let name = rest.split(separator: "/", maxSplits: 1).first, !name.isEmpty {
+        rememberFolderCover(&covers, name: String(name), item: item)
+      }
+    }
+  }
+  let folders = covers.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }.map {
+    LibraryFolder(
+      name: $0,
+      path: path.isEmpty ? $0 : path + "/" + $0,
+      artwork: covers[$0]?.artwork ?? ""
+    )
+  }
+  return LibraryBrowse(folders: folders, files: files)
+}
+
+private func rememberFolderCover(
+  _ covers: inout [String: CatalogItem], name: String, item: CatalogItem
+) {
+  if let existing = covers[name] {
+    if item.filename.localizedStandardCompare(existing.filename) == .orderedAscending {
+      covers[name] = item
+    }
+    return
+  }
+  covers[name] = item
 }
 
 public struct YouTubePage: Decodable, Sendable, Equatable {
@@ -205,10 +345,21 @@ public struct YouTubePage: Decodable, Sendable, Equatable {
   }
 }
 
-public struct YouTubeItem: Decodable, Sendable, Equatable, Identifiable {
+public struct YouTubeItem: Decodable, Encodable, Sendable, Equatable, Identifiable {
   public let id: String
   public let title: String
   public let artwork: String
+}
+
+public struct DownloadItem: Codable, Sendable, Equatable, Identifiable {
+  public let id: String
+  public let title: String
+  public let state: String
+  public let message: String?
+}
+
+public struct DownloadQueue: Codable, Sendable, Equatable {
+  public let items: [DownloadItem]
 }
 
 func libraryEventSignalsChange(_ line: String) -> Bool {

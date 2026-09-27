@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"nestplay.local/server/internal/tools"
 )
 
 const (
@@ -47,7 +49,7 @@ func JPEG(id, src string) ([]byte, error) {
 }
 
 func extract(src, dest string) error {
-	ffmpeg, err := exec.LookPath("ffmpeg")
+	ffmpeg, err := tools.FFmpeg()
 	if err != nil {
 		return err
 	}
@@ -74,7 +76,7 @@ func extract(src, dest string) error {
 }
 
 func durationSeconds(src string) float64 {
-	ffprobe, err := exec.LookPath("ffprobe")
+	ffprobe, err := tools.FFprobe()
 	if err != nil {
 		return 0
 	}

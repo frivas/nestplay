@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"nestplay.local/server/internal/catalog"
+	"nestplay.local/server/internal/downloads"
 	"nestplay.local/server/internal/youtube"
 )
 
@@ -59,6 +62,7 @@ func TestUnsupportedRoutes(t *testing.T) {
 		{http.MethodGet, "/health/extra", http.StatusNotFound},
 		{http.MethodGet, "/library/extra", http.StatusNotFound},
 		{http.MethodPost, "/library", http.StatusMethodNotAllowed},
+		{http.MethodPost, "/library/0123456789abcdef0123456789abcdef/media", http.StatusMethodNotAllowed},
 		{http.MethodPost, "/health", http.StatusMethodNotAllowed},
 		{http.MethodPost, "/youtube/home", http.StatusMethodNotAllowed},
 		{http.MethodGet, "/debug/log", http.StatusMethodNotAllowed},
@@ -151,16 +155,17 @@ func TestLibraryJSON(t *testing.T) {
 		}
 		var body struct {
 			Items []struct {
-				ID       string `json:"id"`
-				Title    string `json:"title"`
-				Filename string `json:"filename"`
-				Artwork  string `json:"artwork"`
+				ID         string `json:"id"`
+				Title      string `json:"title"`
+				Filename   string `json:"filename"`
+				Collection string `json:"collection"`
+				Artwork    string `json:"artwork"`
 			} `json:"items"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
-		if len(body.Items) != 1 || body.Items[0].Title != "Heat" || body.Items[0].Filename != "Heat.mkv" {
+		if len(body.Items) != 1 || body.Items[0].Title != "Heat" || body.Items[0].Filename != "Heat.mkv" || body.Items[0].Collection != "" {
 			t.Fatalf("got %+v", body.Items)
 		}
 		wantArt := "/library/" + body.Items[0].ID + "/artwork"
@@ -187,12 +192,107 @@ func TestLibraryJSON(t *testing.T) {
 			t.Fatalf("unknown artwork status = %d", missing.Code)
 		}
 	})
+	t.Run("collection is not a mac path", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "Mateo", "PJ Masks")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "09 - Gatuno.mp4"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		apiHandler(root).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/library", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		if strings.Contains(w.Body.String(), root) {
+			t.Fatal("watched-folder path leaked on the wire")
+		}
+		var body struct {
+			Items []struct {
+				Collection string `json:"collection"`
+				Filename   string `json:"filename"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Items) != 1 || body.Items[0].Filename != "09 - Gatuno.mp4" || body.Items[0].Collection != "Mateo/PJ Masks" {
+			t.Fatalf("got %+v", body.Items)
+		}
+	})
+}
+
+func TestLibraryMediaRange(t *testing.T) {
+	root := t.TempDir()
+	payload := bytes.Repeat([]byte("mp4-"), 256*1024)
+	if err := os.WriteFile(filepath.Join(root, "Heat.mp4"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cat := mustCatalog(t, root)
+	items := cat.Items()
+	if len(items) != 1 {
+		t.Fatalf("catalog: %+v", items)
+	}
+	h := nestplayHandler(cat, youtube.Disabled(), nil)
+	srv := httptest.NewUnstartedServer(h)
+	srv.Config.WriteTimeout = 80 * time.Millisecond
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	media := srv.URL + "/library/" + items[0].ID + "/media"
+	req, err := http.NewRequest(http.MethodGet, media, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Range", "bytes=0-15")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusPartialContent {
+		t.Fatalf("range status = %d", resp.StatusCode)
+	}
+	if resp.Header.Get("Content-Type") != "video/mp4" {
+		t.Fatalf("type = %q", resp.Header.Get("Content-Type"))
+	}
+	if !bytes.Equal(body, payload[:16]) {
+		t.Fatalf("range body %q", body)
+	}
+	if strings.Contains(resp.Header.Get("Content-Disposition"), root) || strings.Contains(string(body), root) {
+		t.Fatal("watched-folder path leaked on the wire")
+	}
+
+	full, err := http.Get(media)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(full.Body)
+	_ = full.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.StatusCode != http.StatusOK || !bytes.Equal(got, payload) {
+		t.Fatalf("full get status=%d len=%d", full.StatusCode, len(got))
+	}
+
+	missing := httptest.NewRecorder()
+	h.ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/library/0123456789abcdef0123456789abcdef/media", nil))
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("unknown media status = %d", missing.Code)
+	}
 }
 
 func TestLibraryEventsSignalsChange(t *testing.T) {
 	root := t.TempDir()
 	cat := mustCatalog(t, root)
-	srv := httptest.NewServer(nestplayHandler(cat, youtube.Disabled()))
+	srv := httptest.NewServer(nestplayHandler(cat, youtube.Disabled(), nil))
 	t.Cleanup(srv.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -305,7 +405,7 @@ func TestYouTubeJSON(t *testing.T) {
 				},
 			},
 		}
-		h := nestplayHandler(mustCatalog(t, ""), fake)
+		h := nestplayHandler(mustCatalog(t, ""), fake, nil)
 		home := httptest.NewRecorder()
 		h.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/youtube/home", nil))
 		var first struct {
@@ -335,4 +435,37 @@ func TestYouTubeJSON(t *testing.T) {
 			t.Fatalf("artwork status = %d", missing.Code)
 		}
 	})
+}
+
+func TestQueueEnqueueListsWithoutPaths(t *testing.T) {
+	root := t.TempDir()
+	q := downloads.Open(root, t.TempDir(), nil, nil, nil)
+	h := nestplayHandler(mustCatalog(t, root), youtube.Disabled(), q)
+	post := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/queue", strings.NewReader(
+		`{"items":[{"id":"dQw4w9WgXcQ","title":"Heat"}]}`))
+	h.ServeHTTP(post, req)
+	if post.Code != http.StatusOK {
+		t.Fatalf("status = %d", post.Code)
+	}
+	if strings.Contains(post.Body.String(), root) {
+		t.Fatal("path leaked")
+	}
+	var body struct {
+		Items []struct {
+			ID    string `json:"id"`
+			State string `json:"state"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(post.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ID != "dQw4w9WgXcQ" || body.Items[0].State != "queued" {
+		t.Fatalf("%+v", body.Items)
+	}
+	get := httptest.NewRecorder()
+	h.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/queue", nil))
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), "dQw4w9WgXcQ") {
+		t.Fatalf("get %s", get.Body.String())
+	}
 }

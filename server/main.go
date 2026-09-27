@@ -9,15 +9,21 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"nestplay.local/server/internal/artwork"
 	"nestplay.local/server/internal/catalog"
+	"nestplay.local/server/internal/downloads"
+	"nestplay.local/server/internal/playable"
+	"nestplay.local/server/internal/storage"
+	"nestplay.local/server/internal/tools"
 	"nestplay.local/server/internal/youtube"
 )
 
@@ -25,6 +31,8 @@ type config struct {
 	Listen         string `json:"listen"`
 	LibraryRoot    string `json:"library_root"`
 	YouTubeCookies string `json:"youtube_cookies"`
+	YTDLP          string `json:"yt_dlp"`
+	FFmpeg         string `json:"ffmpeg"`
 }
 
 const maxDebugBody = 64 << 10
@@ -34,10 +42,10 @@ func apiHandler(libraryRoot string) http.Handler {
 	if err != nil {
 		cat, _ = catalog.OpenImmediate("", "")
 	}
-	return nestplayHandler(cat, youtube.Disabled())
+	return nestplayHandler(cat, youtube.Disabled(), nil)
 }
 
-func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter) http.Handler {
+func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter, q *downloads.Queue) http.Handler {
 	if cat == nil {
 		cat, _ = catalog.OpenImmediate("", "")
 	}
@@ -57,19 +65,23 @@ func nestplayHandler(cat *catalog.Catalog, yt youtube.Adapter) http.Handler {
 	mux.HandleFunc("GET /library", libraryHandler(cat))
 	mux.HandleFunc("GET /library/events", libraryEventsHandler(cat))
 	mux.HandleFunc("GET /library/{id}/artwork", artworkHandler(cat))
+	mux.HandleFunc("GET /library/{id}/media", mediaHandler(cat))
 	mux.HandleFunc("GET /youtube/status", youtubeStatusHandler(yt))
 	mux.HandleFunc("GET /youtube/home", youtubeHomeHandler(yt))
 	mux.HandleFunc("GET /youtube/search", youtubeSearchHandler(yt))
 	mux.HandleFunc("GET /youtube/{id}/artwork", youtubeArtworkHandler)
+	mux.HandleFunc("GET /queue", queueGetHandler(q))
+	mux.HandleFunc("POST /queue", queuePostHandler(q))
 	mux.HandleFunc("POST /debug/log", debugLogHandler)
 	return mux
 }
 
 type libraryItem struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Filename string `json:"filename"`
-	Artwork  string `json:"artwork"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Filename   string `json:"filename"`
+	Collection string `json:"collection"`
+	Artwork    string `json:"artwork"`
 }
 
 type youtubeItem struct {
@@ -85,7 +97,8 @@ func libraryHandler(cat *catalog.Catalog) http.HandlerFunc {
 		for i, item := range items {
 			out[i] = libraryItem{
 				ID: item.ID, Title: item.Title, Filename: item.Filename,
-				Artwork: "/library/" + item.ID + "/artwork",
+				Collection: item.Collection,
+				Artwork:    "/library/" + item.ID + "/artwork",
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -158,6 +171,38 @@ func artworkHandler(cat *catalog.Catalog) http.HandlerFunc {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 		http.ServeContent(w, r, id+".jpg", time.Time{}, bytes.NewReader(data))
+	}
+}
+
+func mediaHandler(cat *catalog.Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !catalogID(id) {
+			http.NotFound(w, r)
+			return
+		}
+		file, err := cat.FileByID(id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		f, err := os.Open(file.Path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil {
+			http.Error(w, "media unavailable", http.StatusInternalServerError)
+			return
+		}
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+		if ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(file.Item.Filename))); ctype != "" {
+			w.Header().Set("Content-Type", ctype)
+		}
+		w.Header().Set("Cache-Control", "private")
+		http.ServeContent(w, r, file.Item.Filename, stat.ModTime(), f)
 	}
 }
 
@@ -236,6 +281,44 @@ func youtubeThumbnail(id string) []byte {
 	return artwork.Placeholder()
 }
 
+func queueGetHandler(q *downloads.Queue) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeQueue(w, q)
+	}
+}
+
+func queuePostHandler(q *downloads.Queue) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxDebugBody)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "queue too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		items, err := downloads.DecodeEnqueue(body)
+		if err != nil {
+			http.Error(w, "invalid queue", http.StatusBadRequest)
+			return
+		}
+		if q != nil {
+			q.Enqueue(items)
+		}
+		writeQueue(w, q)
+	}
+}
+
+func writeQueue(w http.ResponseWriter, q *downloads.Queue) {
+	items := []downloads.Item{}
+	if q != nil {
+		items = q.List()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(struct {
+		Items []downloads.Item `json:"items"`
+	}{Items: items})
+}
+
 func catalogID(id string) bool {
 	if len(id) != 32 {
 		return false
@@ -290,6 +373,8 @@ func main() {
 	listen := flag.String("listen", "", "listen address; overrides configuration")
 	libraryRoot := flag.String("library-root", "", "watched folder; overrides configuration")
 	youtubeCookies := flag.String("youtube-cookies", "", "YouTube cookie file; overrides configuration")
+	ytdlp := flag.String("yt-dlp", "", "yt-dlp executable; overrides configuration")
+	ffmpeg := flag.String("ffmpeg", "", "ffmpeg binary or directory; overrides configuration")
 	flag.Parse()
 	cfg := config{Listen: "0.0.0.0:8765"}
 	if *configPath != "" {
@@ -310,8 +395,29 @@ func main() {
 	if *youtubeCookies != "" {
 		cfg.YouTubeCookies = *youtubeCookies
 	}
+	if *ytdlp != "" {
+		cfg.YTDLP = *ytdlp
+	}
+	if *ffmpeg != "" {
+		cfg.FFmpeg = *ffmpeg
+	}
 	if cfg.YouTubeCookies == "" {
 		cfg.YouTubeCookies = youtube.DefaultCookieFile()
+	}
+	if cfg.YTDLP == "" {
+		cfg.YTDLP = tools.DefaultYTDLP
+	}
+	if cfg.FFmpeg == "" {
+		cfg.FFmpeg = tools.DefaultFFmpegDir
+	}
+	tools.Configure(cfg.YTDLP, cfg.FFmpeg)
+	ytdlpBin, err := tools.YTDLP()
+	if err != nil {
+		log.Fatal("yt-dlp: ", err)
+	}
+	ffmpegBin, err := tools.FFmpeg()
+	if err != nil {
+		log.Fatal("ffmpeg: ", err)
 	}
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
@@ -321,17 +427,39 @@ func main() {
 		log.Fatal(err)
 	}
 	defer cat.Close()
+	cat.SetVisible(func(path string) bool {
+		return playable.Probe(path) == playable.Show
+	})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	work := filepath.Join(os.TempDir(), "nestplay-work")
+	if cfg.LibraryRoot != "" {
+		work = filepath.Join(cfg.LibraryRoot, ".nestplay-work")
+	}
+	q := downloads.Open(cfg.LibraryRoot, work, downloads.YTDLP{Cookies: cfg.YouTubeCookies}, downloads.FFmpeg{}, storage.VolumeFree)
+	downloads.Sweep(cfg.LibraryRoot, work)
+	go q.Run(ctx)
+	go func() {
+		tick := time.NewTicker(8 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				_ = downloads.ConvertHidden(ctx, cat, downloads.FFmpeg{}, storage.VolumeFree, work)
+			}
+		}
+	}()
 	server := &http.Server{
-		Addr: cfg.Listen, Handler: nestplayHandler(cat, youtube.Cached(youtube.New(cfg.YouTubeCookies), youtube.DefaultHomeCacheFile(), cfg.YouTubeCookies)),
+		Addr: cfg.Listen, Handler: nestplayHandler(cat, youtube.Cached(youtube.New(cfg.YouTubeCookies), youtube.DefaultHomeCacheFile(), cfg.YouTubeCookies), q),
 		ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 45 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go cat.Watch(ctx)
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	fmt.Printf("Nestplay health server listening on %s\nGET /health\nGET /library\nGET /library/events\nGET /library/{id}/artwork\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen)
+	fmt.Printf("Nestplay health server listening on %s\nyt-dlp %s\nffmpeg %s\nGET /health\nGET /library\nGET /library/events\nGET /library/{id}/artwork\nGET /library/{id}/media\nGET /queue\nPOST /queue\nGET /youtube/status\nGET /youtube/home\nGET /youtube/search\nGET /youtube/{id}/artwork\nPOST /debug/log\n", cfg.Listen, ytdlpBin, ffmpegBin)
 	select {
 	case err := <-done:
 		if errors.Is(err, http.ErrServerClosed) {

@@ -27,9 +27,10 @@ var ErrNotFound = errors.New("catalog item not found")
 // Item is a Nestplay-owned catalog record. It is not a TMDB or filesystem
 // schema: the Apple TV only sees these fields.
 type Item struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Filename string `json:"filename"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Filename   string `json:"filename"`
+	Collection string `json:"collection"`
 }
 
 // File is a Mac-side catalog record. Path must never be encoded on the wire.
@@ -40,6 +41,7 @@ type File struct {
 	size  int64
 	mtime int64
 	added int64
+	show  bool
 }
 
 type pendingFile struct {
@@ -55,6 +57,7 @@ type Catalog struct {
 	settle  time.Duration
 	now     func() time.Time
 	store   *store
+	visible func(string) bool
 	mu      sync.RWMutex
 	files   []File
 	byID    map[string]File
@@ -114,13 +117,16 @@ func (c *Catalog) Close() error {
 	return c.store.close()
 }
 
-// Items returns the current snapshot without Mac paths.
+// Items returns the current snapshot without Mac paths. Unplayable files are omitted.
 func (c *Catalog) Items() []Item {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	items := make([]Item, len(c.files))
-	for i, file := range c.files {
-		items[i] = file.Item
+	items := make([]Item, 0, len(c.files))
+	for _, file := range c.files {
+		if !c.shown(file) {
+			continue
+		}
+		items = append(items, file.Item)
 	}
 	return items
 }
@@ -130,10 +136,77 @@ func (c *Catalog) FileByID(id string) (File, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	file, ok := c.byID[id]
-	if !ok {
+	if !ok || !c.shown(file) {
 		return File{}, ErrNotFound
 	}
 	return file, nil
+}
+
+func (c *Catalog) shown(file File) bool {
+	if c == nil || c.visible == nil {
+		return true
+	}
+	return file.show
+}
+
+// SetVisible hides files the Apple TV cannot play. Classification is cached
+// per file so GET /library does not wait on ffprobe.
+func (c *Catalog) SetVisible(fn func(string) bool) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.visible = fn
+	c.mu.Unlock()
+	c.reclassify()
+}
+
+func (c *Catalog) reclassify() {
+	c.mu.RLock()
+	fn := c.visible
+	files := append([]File(nil), c.files...)
+	c.mu.RUnlock()
+	if fn == nil {
+		return
+	}
+	for i := range files {
+		files[i].show = fn(files[i].Path)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, file := range c.files {
+		for _, classified := range files {
+			if classified.Item.ID == file.Item.ID {
+				file.show = classified.show
+				c.files[i] = file
+				c.byID[file.Item.ID] = file
+				break
+			}
+		}
+	}
+}
+
+// Hidden returns Mac files that are in the snapshot but not shown on Apple TV.
+func (c *Catalog) Hidden() []File {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var out []File
+	for _, file := range c.files {
+		if c.shown(file) {
+			continue
+		}
+		out = append(out, file)
+	}
+	return out
+}
+
+func (c *Catalog) broadcastLocked() {
+	for ch := range c.subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // Subscribe receives a coalesced signal when the snapshot changes. Call the
@@ -163,6 +236,24 @@ func (c *Catalog) scan(admitAll bool) error {
 		return err
 	}
 	now := c.now()
+	c.mu.RLock()
+	prevByID := make(map[string]File, len(c.byID))
+	for id, file := range c.byID {
+		prevByID[id] = file
+	}
+	fn := c.visible
+	c.mu.RUnlock()
+	for i := range disk {
+		if prev, ok := prevByID[disk[i].Item.ID]; ok && prev.size == disk[i].size && prev.mtime == disk[i].mtime {
+			disk[i].show = prev.show
+			continue
+		}
+		if fn == nil {
+			disk[i].show = true
+			continue
+		}
+		disk[i].show = fn(disk[i].Path)
+	}
 	next := make([]File, 0, len(disk))
 	nextByID := make(map[string]File, len(disk))
 	nextPending := map[string]pendingFile{}
@@ -236,12 +327,7 @@ func (c *Catalog) scan(admitAll bool) error {
 		}
 	}
 	if changed {
-		for ch := range c.subs {
-			select {
-			case ch <- struct{}{}:
-			default:
-			}
-		}
+		c.broadcastLocked()
 	}
 	return nil
 }
@@ -336,14 +422,16 @@ func walkFiles(root string) ([]File, error) {
 			return err
 		}
 		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		slashRel := filepath.ToSlash(rel)
 		files = append(files, File{
 			Item: Item{
-				ID:       stableID(rel),
-				Title:    title,
-				Filename: d.Name(),
+				ID:         stableID(rel),
+				Title:      title,
+				Filename:   d.Name(),
+				Collection: collectionOf(slashRel),
 			},
 			Path:  path,
-			rel:   filepath.ToSlash(rel),
+			rel:   slashRel,
 			size:  stat.Size(),
 			mtime: stat.ModTime().UnixNano(),
 			added: addedAt(stat),
@@ -368,6 +456,14 @@ func addedAt(info fs.FileInfo) int64 {
 
 func skipName(name string) bool {
 	return strings.HasPrefix(name, ".")
+}
+
+func collectionOf(slashRel string) string {
+	i := strings.LastIndex(slashRel, "/")
+	if i <= 0 {
+		return ""
+	}
+	return slashRel[:i]
 }
 
 func depth(rel string) int {
