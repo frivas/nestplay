@@ -22,6 +22,7 @@ import (
 	"nestplay.local/server/internal/catalog"
 	"nestplay.local/server/internal/downloads"
 	"nestplay.local/server/internal/playable"
+	"nestplay.local/server/internal/providers"
 	"nestplay.local/server/internal/storage"
 	"nestplay.local/server/internal/tools"
 	"nestplay.local/server/internal/youtube"
@@ -421,6 +422,11 @@ func main() {
 	}
 	if cfg.Listen == "" {
 		log.Fatal("listen must not be empty")
+	}
+	if _, secretsPath, err := providers.LoadOptionalConfig(); err != nil {
+		log.Fatal(err)
+	} else if secretsPath != "" {
+		log.Printf("using unpaid provider policy from %s", secretsPath)
 	}
 	cat, err := catalog.Open(cfg.LibraryRoot, catalog.DefaultDBPath())
 	if err != nil {

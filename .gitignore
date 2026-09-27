@@ -5,3 +5,29 @@ DerivedData/
 *.xcresult
 xcuserdata/
 youtube-cookies.txt
+
+# Local secrets. Never commit provider keys, cookies, or signing material.
+secrets/*
+!secrets/README.md
+!secrets/*.example
+.env
+.env.*
+!.env.example
+.nestplay/
+config.local.json
+**/config.local.json
+providers.env
+**/providers.env
+
+# YouTube / browser sessions (Mac-only import later)
+*cookies*.txt
+*cookies*.json
+*youtube*session*
+*.netscape-cookies
+
+# Apple signing identities (Personal Team stays off git)
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+exportOptions.plist
