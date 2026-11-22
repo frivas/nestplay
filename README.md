@@ -90,3 +90,9 @@ To regenerate the Xcode project after changing `apps/tvos/project.yml`, run `mak
 With the server running on port 8765, run the Nestplay scheme's tests in a tvOS simulator. The UI checks cover a successful real-server response and an unreachable endpoint with retry available. The portable Swift package tests malformed responses, wrong server/version, address validation and network failure.
 
 See `VALIDATION.md` for observed results and remaining device acceptance.
+
+## Author
+
+**Francisco Rivas** · [Portfolio](https://portfolio.probablysmart.com) · [LinkedIn](https://www.linkedin.com/in/franciscojrivash/) · [GitHub](https://github.com/frivas)
+
+<a href="https://chapa.thecreativetoken.com/u/frivas"><img src="https://chapa.thecreativetoken.com/u/frivas/badge.svg" alt="Chapa developer impact badge for Francisco Rivas" width="420"></a>
